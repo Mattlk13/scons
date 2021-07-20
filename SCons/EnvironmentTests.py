@@ -31,8 +31,8 @@ import unittest
 from collections import UserDict as UD, UserList as UL
 
 import TestCmd
-import TestUnit
 
+import SCons.Warnings
 from SCons.Environment import (
     Environment,
     NoSubstitutionProxy,
@@ -40,7 +40,8 @@ from SCons.Environment import (
     SubstitutionEnvironment,
     is_valid_construction_var,
 )
-import SCons.Warnings
+from SCons.Util import CLVar
+
 
 def diff_env(env1, env2):
     s1 = "env1 = {\n"
@@ -131,17 +132,6 @@ class Scanner:
         return self.name
 
 
-
-class CLVar(UL):
-    def __init__(self, seq):
-        if isinstance(seq, str):
-            seq = seq.split()
-        UL.__init__(self, seq)
-    def __add__(self, other):
-        return UL.__add__(self, CLVar(other))
-    def __radd__(self, other):
-        return UL.__radd__(self, CLVar(other))
-
 class DummyNode:
     def __init__(self, name):
         self.name = name
@@ -153,7 +143,7 @@ class DummyNode:
         return self
 
 def test_tool( env ):
-    env['_F77INCFLAGS'] = '$( ${_concat(INCPREFIX, F77PATH, INCSUFFIX, __env__, RDirs, TARGET, SOURCE)} $)'
+    env['_F77INCFLAGS'] = '${_concat(INCPREFIX, F77PATH, INCSUFFIX, __env__, RDirs, TARGET, SOURCE, affect_signature=False)}'
 
 class TestEnvironmentFixture:
     def TestEnvironment(self, *args, **kw):
@@ -218,12 +208,6 @@ class SubstitutionTestCase(unittest.TestCase):
         env = SubstitutionEnvironment(XXX = 'x')
         assert env.get('XXX') == 'x', env.get('XXX')
         assert env.get('YYY') is None, env.get('YYY')
-
-    def test_has_key(self):
-        """Test the SubstitutionEnvironment has_key() method."""
-        env = SubstitutionEnvironment(XXX = 'x')
-        assert 'XXX' in env
-        assert 'YYY' not in env
 
     def test_contains(self):
         """Test the SubstitutionEnvironment __contains__() method."""
@@ -885,7 +869,7 @@ sys.exit(0)
 
         # avoid SubstitutionEnvironment for these, has no .Append method,
         # which is needed for unique=False test
-        env = Environment(CCFLAGS=None)
+        env = Environment(CCFLAGS="")
         # merge with existing but empty flag
         env.MergeFlags('-X')
         assert env['CCFLAGS'] == ['-X'], env['CCFLAGS']
@@ -1010,14 +994,13 @@ class BaseTestCase(unittest.TestCase,TestEnvironmentFixture):
         assert called_it['source'] is None, called_it
 
     def test_BuilderWrapper_attributes(self):
-        """Test getting and setting of BuilderWrapper attributes
-        """
+        """Test getting and setting of BuilderWrapper attributes."""
         b1 = Builder()
         b2 = Builder()
         e1 = Environment()
         e2 = Environment()
 
-        e1.Replace(BUILDERS = {'b' : b1})
+        e1.Replace(BUILDERS={'b': b1})
         bw = e1.b
 
         assert bw.env is e1
@@ -1466,6 +1449,31 @@ def exists(env):
         assert env['TOOL2'] == 222, env
         assert env['XYZ'] == 'ddd', env
 
+    def test_default_copy_cache(self):
+        copied = False
+
+        def copy2(self, src, dst):
+            nonlocal copied
+            copied = True
+
+        save_copy_from_cache = SCons.CacheDir.CacheDir.copy_from_cache
+        SCons.CacheDir.CacheDir.copy_from_cache = copy2
+
+        save_copy_to_cache = SCons.CacheDir.CacheDir.copy_to_cache
+        SCons.CacheDir.CacheDir.copy_to_cache = copy2
+
+        env = self.TestEnvironment()
+
+        SCons.Environment.default_copy_from_cache(env, 'test.in', 'test.out')
+        assert copied
+
+        copied = False
+        SCons.Environment.default_copy_to_cache(env, 'test.in', 'test.out')
+        assert copied
+
+        SCons.CacheDir.CacheDir.copy_from_cache = save_copy_from_cache
+        SCons.CacheDir.CacheDir.copy_to_cache = save_copy_to_cache
+
     def test_concat(self):
         """Test _concat()"""
         e1 = self.TestEnvironment(PRE='pre', SUF='suf', STR='a b', LIST=['a', 'b'])
@@ -1480,6 +1488,9 @@ def exists(env):
         assert x == 'prea bsuf', x
         x = s("${_concat(PRE, LIST, SUF, __env__)}")
         assert x == 'preasuf prebsuf', x
+        x = s("${_concat(PRE, LIST, SUF, __env__,affect_signature=False)}", raw=True)
+        assert x == '$( preasuf prebsuf $)', x
+
 
     def test_concat_nested(self):
         """Test _concat() on a nested substitution strings."""
@@ -1781,39 +1792,39 @@ def exists(env):
         assert result == ['bar'], result
 
     def test_Clone(self):
-        """Test construction environment copying
+        """Test construction environment cloning.
 
-        Update the copy independently afterwards and check that
+        The clone should compare equal if there are no overrides.
+        Update the clone independently afterwards and check that
         the original remains intact (that is, no dangling
         references point to objects in the copied environment).
         Clone the original with some construction variable
         updates and check that the original remains intact
         and the copy has the updated values.
         """
-        env1 = self.TestEnvironment(XXX = 'x', YYY = 'y')
+        env1 = self.TestEnvironment(XXX='x', YYY='y')
         env2 = env1.Clone()
         env1copy = env1.Clone()
-        assert env1copy == env1copy
-        assert env2 == env2
+        assert env1copy == env1
+        assert env2 == env1
         env2.Replace(YYY = 'yyy')
-        assert env2 == env2
         assert env1 != env2
         assert env1 == env1copy
 
-        env3 = env1.Clone(XXX = 'x3', ZZZ = 'z3')
-        assert env3 == env3
+        env3 = env1.Clone(XXX='x3', ZZZ='z3')
+        assert env3 != env1
         assert env3.Dictionary('XXX') == 'x3'
+        assert env1.Dictionary('XXX') == 'x'
         assert env3.Dictionary('YYY') == 'y'
         assert env3.Dictionary('ZZZ') == 'z3'
         assert env1 == env1copy
 
-        # Ensure that lists and dictionaries are
-        # deep copied, but not instances.
+        # Ensure that lists and dictionaries are deep copied, but not instances
         class TestA:
             pass
-        env1 = self.TestEnvironment(XXX=TestA(), YYY = [ 1, 2, 3 ],
-                           ZZZ = { 1:2, 3:4 })
-        env2=env1.Clone()
+
+        env1 = self.TestEnvironment(XXX=TestA(), YYY=[1, 2, 3], ZZZ={1: 2, 3: 4})
+        env2 = env1.Clone()
         env2.Dictionary('YYY').append(4)
         env2.Dictionary('ZZZ')[5] = 6
         assert env1.Dictionary('XXX') is env2.Dictionary('XXX')
@@ -1823,20 +1834,18 @@ def exists(env):
         assert 5 not in env1.Dictionary('ZZZ')
 
         #
-        env1 = self.TestEnvironment(BUILDERS = {'b1' : Builder()})
+        env1 = self.TestEnvironment(BUILDERS={'b1': Builder()})
         assert hasattr(env1, 'b1'), "env1.b1 was not set"
         assert env1.b1.object == env1, "b1.object doesn't point to env1"
         env2 = env1.Clone(BUILDERS = {'b2' : Builder()})
-        assert env2 is env2
-        assert env2 == env2
+        assert env2 != env1
         assert hasattr(env1, 'b1'), "b1 was mistakenly cleared from env1"
         assert env1.b1.object == env1, "b1.object was changed"
         assert not hasattr(env2, 'b1'), "b1 was not cleared from env2"
         assert hasattr(env2, 'b2'), "env2.b2 was not set"
         assert env2.b2.object == env2, "b2.object doesn't point to env2"
 
-        # Ensure that specifying new tools in a copied environment
-        # works.
+        # Ensure that specifying new tools in a copied environment works.
         def foo(env): env['FOO'] = 1
         def bar(env): env['BAR'] = 2
         def baz(env): env['BAZ'] = 3
@@ -2493,9 +2502,11 @@ f5: \
 
         exc_caught = None
         try:
-            env.Tool('does_not_exist')
+            tool = env.Tool('does_not_exist')
         except SCons.Errors.UserError:
             exc_caught = 1
+        else:
+            assert isinstance(tool, SCons.Tool.Tool)
         assert exc_caught, "did not catch expected UserError"
 
         exc_caught = None
@@ -2574,6 +2585,8 @@ def generate(env):
 
         path = os.pathsep.join(pathdirs_1234)
         env = self.TestEnvironment(ENV = {'PATH' : path})
+        wi = env.WhereIs('')
+        assert wi is None
         wi = env.WhereIs('xxx.exe')
         assert wi == test.workpath(sub3_xxx_exe), wi
         wi = env.WhereIs('xxx.exe', pathdirs_1243)
@@ -2797,13 +2810,33 @@ def generate(env):
 
     def test_CacheDir(self):
         """Test the CacheDir() method"""
-        env = self.TestEnvironment(CD = 'CacheDir')
 
-        env.CacheDir('foo')
-        assert env._CacheDir_path == 'foo', env._CacheDir_path
+        test = TestCmd.TestCmd(workdir = '')
+
+        test_cachedir = os.path.join(test.workpath(),'CacheDir')
+        test_cachedir_config = os.path.join(test_cachedir, 'config')
+        test_foo = os.path.join(test.workpath(), 'foo-cachedir')
+        test_foo_config = os.path.join(test_foo,'config')
+        test_foo1 = os.path.join(test.workpath(), 'foo1-cachedir')
+        test_foo1_config = os.path.join(test_foo1, 'config')
+
+        env = self.TestEnvironment(CD = test_cachedir)
+
+        env.CacheDir(test_foo)
+        assert env._CacheDir_path == test_foo, env._CacheDir_path
+        assert os.path.isfile(test_foo_config), "No file %s"%test_foo_config
 
         env.CacheDir('$CD')
-        assert env._CacheDir_path == 'CacheDir', env._CacheDir_path
+        assert env._CacheDir_path == test_cachedir, env._CacheDir_path
+        assert os.path.isfile(test_cachedir_config), "No file %s"%test_cachedir_config
+
+        # Now verify that -n/-no_exec wil prevent the CacheDir/config from being created
+        import SCons.Action
+        SCons.Action.execute_actions = False
+        env.CacheDir(test_foo1)
+        assert env._CacheDir_path == test_foo1, env._CacheDir_path
+        assert not os.path.isfile(test_foo1_config), "No file %s"%test_foo1_config
+
 
     def test_Clean(self):
         """Test the Clean() method"""
@@ -2849,10 +2882,14 @@ def generate(env):
 
         def testFunc(env, target, source):
             assert str(target[0]) == 'foo.out'
-            assert 'foo1.in' in list(map(str, source)) and 'foo2.in' in list(map(str, source)), list(map(str, source))
+            srcs = list(map(str, source))
+            assert 'foo1.in' in srcs and 'foo2.in' in srcs, srcs
             return 0
+
+        # avoid spurious output from action
+        act = env.Action(testFunc, cmdstr=None)
         t = env.Command(target='foo.out', source=['foo1.in','foo2.in'],
-                        action=testFunc)[0]
+                        action=act)[0]
         assert t.builder is not None
         assert t.builder.action.__class__.__name__ == 'FunctionAction'
         t.build()
@@ -3301,7 +3338,9 @@ def generate(env):
 
         foo = env.Object('foo.obj', 'foo.cpp')[0]
         bar = env.Object('bar.obj', 'bar.cpp')[0]
-        s = env.SideEffect('mylib.pdb', ['foo.obj', 'bar.obj'])[0]
+        s = env.SideEffect('mylib.pdb', ['foo.obj', 'bar.obj'])
+        assert len(s) == 1, len(s)
+        s = s[0]
         assert s.__class__.__name__ == 'Entry', s.__class__.__name__
         assert s.get_internal_path() == 'mylib.pdb'
         assert s.side_effect
@@ -3310,7 +3349,9 @@ def generate(env):
 
         fff = env.Object('fff.obj', 'fff.cpp')[0]
         bbb = env.Object('bbb.obj', 'bbb.cpp')[0]
-        s = env.SideEffect('my${LIB}.pdb', ['${FOO}.obj', '${BAR}.obj'])[0]
+        s = env.SideEffect('my${LIB}.pdb', ['${FOO}.obj', '${BAR}.obj'])
+        assert len(s) == 1, len(s)
+        s = s[0]
         assert s.__class__.__name__ == 'File', s.__class__.__name__
         assert s.get_internal_path() == 'mylll.pdb'
         assert s.side_effect
@@ -3319,12 +3360,20 @@ def generate(env):
 
         ggg = env.Object('ggg.obj', 'ggg.cpp')[0]
         ccc = env.Object('ccc.obj', 'ccc.cpp')[0]
-        s = env.SideEffect('mymmm.pdb', ['ggg.obj', 'ccc.obj'])[0]
+        s = env.SideEffect('mymmm.pdb', ['ggg.obj', 'ccc.obj'])
+        assert len(s) == 1, len(s)
+        s = s[0]
         assert s.__class__.__name__ == 'Dir', s.__class__.__name__
         assert s.get_internal_path() == 'mymmm.pdb'
         assert s.side_effect
         assert ggg.side_effects == [s], ggg.side_effects
         assert ccc.side_effects == [s], ccc.side_effects
+
+        # Verify that duplicate side effects are not allowed.
+        before = len(ggg.side_effects)
+        s = env.SideEffect('mymmm.pdb', ggg)
+        assert len(s) == 0, len(s)
+        assert len(ggg.side_effects) == before, len(ggg.side_effects)
 
     def test_Split(self):
         """Test the Split() method"""
@@ -3600,8 +3649,8 @@ class OverrideEnvironmentTestCase(unittest.TestCase,TestEnvironmentFixture):
         assert env2.get('ZZZ') is None, env2.get('ZZZ')
         assert env3.get('ZZZ') == 'z3', env3.get('ZZZ')
 
-    def test_has_key(self):
-        """Test the OverrideEnvironment has_key() method"""
+    def test_contains(self):
+        """Test the OverrideEnvironment __contains__() method"""
         env, env2, env3 = self.envs
         assert 'XXX' in env, 'XXX' in env
         assert 'XXX' in env2, 'XXX' in env2
@@ -3612,19 +3661,6 @@ class OverrideEnvironmentTestCase(unittest.TestCase,TestEnvironmentFixture):
         assert 'ZZZ' not in env, 'ZZZ' in env
         assert 'ZZZ' not in env2, 'ZZZ' in env2
         assert 'ZZZ' in env3, 'ZZZ' in env3
-
-    def test_contains(self):
-        """Test the OverrideEnvironment __contains__() method"""
-        env, env2, env3 = self.envs
-        assert 'XXX' in env
-        assert 'XXX' in env2
-        assert 'XXX' in env3
-        assert 'YYY' in env
-        assert 'YYY' in env2
-        assert 'YYY' in env3
-        assert 'ZZZ' not in env
-        assert 'ZZZ' not in env2
-        assert 'ZZZ' in env3
 
     def test_Dictionary(self):
         """Test the OverrideEnvironment Dictionary() method"""

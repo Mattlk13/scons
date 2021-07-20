@@ -2,7 +2,7 @@ SCons - a software construction tool
 ####################################
 
 .. image:: https://img.shields.io/badge/IRC-scons-blue.svg
-   :target: http://webchat.freenode.net/?channels=%23scons&uio=d4
+   :target: https://web.libera.chat/#scons
    :alt: IRC
 
 .. image:: https://img.shields.io/sourceforge/dm/scons.svg
@@ -13,8 +13,8 @@ SCons - a software construction tool
    :target: https://sourceforge.net/projects/scons
    :alt: Sourceforge Total Downloads
 
-.. image:: https://travis-ci.org/SCons/scons.svg?branch=master
-   :target: https://travis-ci.org/SCons/scons
+.. image:: https://travis-ci.com/SCons/scons.svg?branch=master
+   :target: https://travis-ci.com/SCons/scons
    :alt: Travis CI build status
 
 .. image:: https://ci.appveyor.com/api/projects/status/github/SCons/scons?svg=true&branch=master
@@ -24,6 +24,10 @@ SCons - a software construction tool
 .. image:: https://codecov.io/gh/SCons/scons/branch/master/graph/badge.svg
    :target: https://codecov.io/gh/SCons/scons
    :alt: CodeCov Coverage Status
+
+.. image:: https://github.com/SCons/scons/workflows/SCons%20Build/badge.svg
+   :target: https://github.com/SCons/scons/actions?query=workflow%3A%22SCons+Build%22
+   :alt: Github Actions
 
 
 Welcome to the SCons development tree.  The real purpose of this tree is to
@@ -74,6 +78,10 @@ Execution Requirements
 
 Running SCons requires Python 3.5 or higher. There should be no other
 dependencies or requirements to run scons
+
+As of SCons 4.2.0 support for Python 3.5 is deprecated and will be removed
+with the next major release.
+
 
 The default SCons configuration assumes use of the Microsoft Visual C++
 compiler suite on Win32 systems, and assumes a C compiler named 'cc', a C++
@@ -625,5 +633,5 @@ many contributors, including but not at all limited to:
 
 \... and many others.
 
-Copyright (c) 2001 - 2020 The SCons Foundation
+Copyright (c) 2001 - 2021 The SCons Foundation
 

@@ -130,7 +130,7 @@ class PlatformSpec:
 class TempFileMunge:
     """Convert long command lines to use a temporary file.
 
-    You can set an Environment variable (usually `TEMPFILE`) to this,
+    You can set an Environment variable (usually ``TEMPFILE``) to this,
     then call it with a string argument, and it will perform temporary
     file substitution on it.  This is used to circumvent limitations on
     the length of command lines. Example::
@@ -140,20 +140,42 @@ class TempFileMunge:
 
     By default, the name of the temporary file used begins with a
     prefix of '@'.  This may be configured for other tool chains by
-    setting the TEMPFILEPREFIX variable. Example::
+    setting the ``TEMPFILEPREFIX`` variable. Example::
 
         env["TEMPFILEPREFIX"] = '-@'        # diab compiler
         env["TEMPFILEPREFIX"] = '-via'      # arm tool chain
         env["TEMPFILEPREFIX"] = ''          # (the empty string) PC Lint
 
     You can configure the extension of the temporary file through the
-    TEMPFILESUFFIX variable, which defaults to '.lnk' (see comments
+    ``TEMPFILESUFFIX`` variable, which defaults to '.lnk' (see comments
     in the code below). Example::
 
         env["TEMPFILESUFFIX"] = '.lnt'   # PC Lint
 
     Entries in the temporary file are separated by the value of the
-    TEMPFILEARGJOIN variable, which defaults to an OS-appropriate value.
+    ``TEMPFILEARGJOIN`` variable, which defaults to an OS-appropriate value.
+
+    A default argument escape function is ``SCons.Subst.quote_spaces``.
+    If you need to apply extra operations on a command argument before
+    writing to a temporary file(fix Windows slashes, normalize paths, etc.),
+    please set `TEMPFILEARGESCFUNC` variable to a custom function. Example::
+
+        import sys
+        import re
+        from SCons.Subst import quote_spaces
+
+        WINPATHSEP_RE = re.compile(r"\\([^\"'\\]|$)")
+
+
+        def tempfile_arg_esc_func(arg):
+            arg = quote_spaces(arg)
+            if sys.platform != "win32":
+                return arg
+            # GCC requires double Windows slashes, let's use UNIX separator
+            return WINPATHSEP_RE.sub(r"/\1", arg)
+
+
+        env["TEMPFILEARGESCFUNC"] = tempfile_arg_esc_func
 
     """
     def __init__(self, cmd, cmdstr = None):
@@ -235,13 +257,18 @@ class TempFileMunge:
             # Windows path names.
             rm = 'del'
 
-        prefix = env.subst('$TEMPFILEPREFIX')
-        if not prefix:
+        if 'TEMPFILEPREFIX' in env:
+            prefix = env.subst('$TEMPFILEPREFIX')
+        else:
             prefix = '@'
 
-        args = list(map(SCons.Subst.quote_spaces, cmd[1:]))
-        join_char = env.get('TEMPFILEARGJOIN',' ')
-        os.write(fd, bytearray(join_char.join(args) + "\n",'utf-8'))
+        tempfile_esc_func = env.get('TEMPFILEARGESCFUNC', SCons.Subst.quote_spaces)
+        args = [
+            tempfile_esc_func(arg)
+            for arg in cmd[1:]
+        ]
+        join_char = env.get('TEMPFILEARGJOIN', ' ')
+        os.write(fd, bytearray(join_char.join(args) + "\n", 'utf-8'))
         os.close(fd)
 
         # XXX Using the SCons.Action.print_actions value directly
@@ -268,7 +295,7 @@ class TempFileMunge:
                     str(cmd[0]) + " " + " ".join(args))
                 self._print_cmd_str(target, source, env, cmdstr)
 
-        cmdlist = [ cmd[0], prefix + native_tmp + '\n' + rm, native_tmp ]
+        cmdlist = [cmd[0], prefix + native_tmp + '\n' + rm, native_tmp]
 
         # Store the temporary file command list into the target Node.attributes
         # to avoid creating two temporary files one for print and one for execute.
@@ -278,7 +305,7 @@ class TempFileMunge:
                 # $TEMPFILE{} fixes issue raised in PR #3140 and #3553
                 node.attributes.tempfile_cmdlist[cmdlist_key] = cmdlist
             except AttributeError:
-                node.attributes.tempfile_cmdlist = {cmdlist_key:cmdlist}
+                node.attributes.tempfile_cmdlist = {cmdlist_key: cmdlist}
 
         return cmdlist
 

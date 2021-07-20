@@ -1,15 +1,6 @@
-"""SCons.Tool.msvs
-
-Tool-specific initialization for Microsoft Visual Studio project files.
-
-There normally shouldn't be any need to import this module directly.
-It will usually be imported through the generic SCons.Tool.Tool()
-selection method.
-
-"""
-
+# MIT License
 #
-# __COPYRIGHT__
+# Copyright The SCons Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -29,9 +20,13 @@ selection method.
 # LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-__revision__ = "__FILE__ __REVISION__ __DATE__ __DEVELOPER__"
 
-import SCons.compat
+""" Tool-specific initialization for Microsoft Visual Studio project files.
+
+There normally shouldn't be any need to import this module directly.
+It will usually be imported through the generic SCons.Tool.Tool()
+selection method.
+"""
 
 import base64
 import uuid
@@ -48,10 +43,9 @@ import SCons.Script.SConscript
 import SCons.PathList
 import SCons.Util
 import SCons.Warnings
-
-from .MSCommon import msvc_exists, msvc_setup_env_once
 from SCons.Defaults import processDefines
 from SCons.compat import PICKLE_PROTOCOL
+from .MSCommon import msvc_exists, msvc_setup_env_once
 
 ##############################################################################
 # Below here are the classes and functions for generation of
@@ -607,6 +601,7 @@ class _DSPGenerator:
                 config.platform = 'Win32'
 
             self.configs[variant] = config
+            # DEBUG: leave enabled, test/MSVS/CPPPATH-dirs.py expects this
             print("Adding '" + self.name + ' - ' + config.variant + '|' + config.platform + "' to '" + str(dspfile) + "'")
 
         for i in range(len(variants)):
@@ -781,7 +776,7 @@ class _GenerateV6DSP(_DSPGenerator):
             data = pickle.loads(datas)
         except KeyboardInterrupt:
             raise
-        except:
+        except Exception:
             return # unable to unpickle any data for some reason
 
         self.configs.update(data)
@@ -1444,7 +1439,9 @@ class _GenerateV10DSP(_DSPGenerator, _GenerateV10User):
                         '\t</ItemGroup>\n' % str(self.sconscript))
 
     def Parse(self):
-        print("_GenerateV10DSP.Parse()")
+        # DEBUG
+        # print("_GenerateV10DSP.Parse()")
+        pass
 
     def Build(self):
         try:
@@ -1530,7 +1527,8 @@ class _GenerateV7DSW(_DSWGenerator):
                 config.platform = 'Win32'
 
             self.configs[variant] = config
-            print("Adding '" + self.name + ' - ' + config.variant + '|' + config.platform + "' to '" + str(dswfile) + "'")
+            # DEBUG
+            # print("Adding '" + self.name + ' - ' + config.variant + '|' + config.platform + "' to '" + str(dswfile) + "'")
 
         if 'variant' not in env:
             raise SCons.Errors.InternalError("You must specify a 'variant' argument (i.e. 'Debug' or " +\

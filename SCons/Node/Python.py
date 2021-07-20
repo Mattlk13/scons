@@ -138,19 +138,13 @@ class Value(SCons.Node.Node):
         ###TODO: something reasonable about universal newlines
         contents = str(self.value)
         for kid in self.children(None):
-            contents = contents + kid.get_contents().decode()
+            # Get csig() value of child as this is more efficent
+            contents = contents + kid.get_csig()
         return contents
 
     def get_contents(self) -> bytes:
         """Get contents for signature calculations."""
         return self.get_text_contents().encode()
-
-    def changed_since_last_build(self, target, prev_ni):
-        cur_csig = self.get_csig()
-        try:
-            return cur_csig != prev_ni.csig
-        except AttributeError:
-            return True
 
     def get_csig(self, calc=None):
         """Because we're a Python value node and don't have a real

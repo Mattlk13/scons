@@ -101,22 +101,24 @@ scons: Reading SConscript files ...
   'TARGET_ARCH': None,
   'TARGET_OS': None,
   'TEMPFILE': &lt;class 'SCons.Platform.TempFileMunge'&gt;,
+  'TEMPFILEARGESCFUNC': &lt;function quote_spaces at 0x700000&gt;,
   'TEMPFILEARGJOIN': '\n',
   'TEMPFILEPREFIX': '@',
   'TOOLS': ['msvc', 'install', 'install'],
   'VSWHERE': None,
   '_CCCOMCOM': '$CPPFLAGS $_CPPDEFFLAGS $_CPPINCFLAGS $CCPCHFLAGS $CCPDBFLAGS',
-  '_CPPDEFFLAGS': '${_defines(CPPDEFPREFIX, CPPDEFINES, CPPDEFSUFFIX, '
-                  '__env__)}',
-  '_CPPINCFLAGS': '$( ${_concat(INCPREFIX, CPPPATH, INCSUFFIX, __env__, RDirs, '
-                  'TARGET, SOURCE)} $)',
-  '_LIBDIRFLAGS': '$( ${_concat(LIBDIRPREFIX, LIBPATH, LIBDIRSUFFIX, __env__, '
-                  'RDirs, TARGET, SOURCE)} $)',
+  '_CPPDEFFLAGS': '${_defines(CPPDEFPREFIX, CPPDEFINES, CPPDEFSUFFIX, __env__, '
+                  'TARGET, SOURCE)}',
+  '_CPPINCFLAGS': '${_concat(INCPREFIX, CPPPATH, INCSUFFIX, __env__, RDirs, '
+                  'TARGET, SOURCE, affect_signature=False)}',
+  '_LIBDIRFLAGS': '${_concat(LIBDIRPREFIX, LIBPATH, LIBDIRSUFFIX, __env__, '
+                  'RDirs, TARGET, SOURCE, affect_signature=False)}',
   '_LIBFLAGS': '${_concat(LIBLINKPREFIX, LIBS, LIBLINKSUFFIX, __env__)}',
   '_MSVC_OUTPUT_FLAG': &lt;function msvc_output_flag at 0x700000&gt;,
   '__DSHLIBVERSIONFLAGS': '${__libversionflags(__env__,"DSHLIBVERSION","_DSHLIBVERSIONFLAGS")}',
   '__LDMODULEVERSIONFLAGS': '${__libversionflags(__env__,"LDMODULEVERSION","_LDMODULEVERSIONFLAGS")}',
   '__SHLIBVERSIONFLAGS': '${__libversionflags(__env__,"SHLIBVERSION","_SHLIBVERSIONFLAGS")}',
+  '__lib_either_version_flag': &lt;function __lib_either_version_flag at 0x700000&gt;,
   '__libversionflags': &lt;function __libversionflags at 0x700000&gt;,
   '_concat': &lt;function _concat at 0x700000&gt;,
   '_defines': &lt;function _defines at 0x700000&gt;,

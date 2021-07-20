@@ -47,22 +47,17 @@
     <title>SCons &buildversion;</title>
     <subtitle>MAN page</subtitle>
 
-    <author>
-      <firstname>Steven</firstname>
-      <surname>Knight</surname>
-    </author>
-
-    <corpauthor>Steven Knight and the SCons Development Team</corpauthor>
+    <corpauthor>The SCons Development Team</corpauthor>
 
     <!-- adding pubdate seems superfluous when copyright year is the same
          and html rendering puts both of them at the top of the page -->
-    <pubdate>2004 - 2020</pubdate>
-    <copyright>
-      <year>2004 - 2020</year>
+    <pubdate>Released &builddate;</pubdate>
+        <copyright>
+      <year>&copyright_years;</year>
       <holder>The SCons Foundation</holder>
     </copyright>
 
-    <releaseinfo>version &buildversion;</releaseinfo>
+    <releaseinfo>Version &buildversion;</releaseinfo>
 
     <mediaobject role="cover"><imageobject><imagedata fileref="cover.jpg" format="JPG"/></imageobject></mediaobject>
 
@@ -70,7 +65,6 @@
 
   <title>SCons &buildversion;</title>
   <subtitle>MAN page</subtitle>
-
 
 <refentry id='scons1'>
 <refmeta>
@@ -102,42 +96,64 @@ orchestrates the construction of software
 (and other tangible products such as documentation files)
 by determining which
 component pieces must be built or rebuilt and invoking the necessary
-commands to build them.</para>
+commands to build them.
+&SCons; offers many features to improve developer productivity
+such as parallel builds, caching of build artifacts,
+automatic dependency scanning,
+and a database of information about previous builds so
+details do not have to be recalculated each run.
+</para>
 
-<para>You instruct
-&scons; by writing a configuration file
-which specifies the files to be built (<firstterm>targets</firstterm>),
-and, if necessary, the rules to build those files.  Premade
-rules exist for building many common software components
+<para>&scons; requires Python 3.5 or later to run;
+there should be no other dependencies or requirements.
+<emphasis>
+Support for Python 3.5 is deprecated since
+&SCons; 4.2 and will be dropped in a future release.
+The CPython project has retired 3.5:
+<ulink url="https://www.python.org/dev/peps/pep-0478"/>.
+</emphasis></para>
+
+<para>You set up an &SCons;
+build system by writing a script
+that describes things to build (<firstterm>targets</firstterm>), and,
+if necessary, the rules to build those files (<firstterm>actions</firstterm>).
+&SCons; comes with a collection of <firstterm>Builder</firstterm> methods
+which apply premade actions for building many common software components
 such as executable programs, object files and libraries,
 so that for many software projects,
-only the target and input files (<firstterm>sources</firstterm>)
-need be specified.</para>
+only the targets and input files (<firstterm>sources</firstterm>)
+need be specified in a call to a builder.
+&scons; thus can operate at a level of abstraction above that of pure files.
+For example if you specify a library target named "foo",
+&scons; keeps track of the actual operating system dependent filename
+(such as <filename>libfoo.so</filename> on a GNU/Linux system),
+and how to refer to that library in later construction steps
+that want to use it, so you don't have to specify that precise
+information yourself.
+&scons; can also scan automatically for dependency information,
+such as header files included by source code files,
+so this does not have to be specified manually.
+</para>
 
 <para>
 When invoked, &scons;
-searches for a file named
+looks for a file named
 &SConstruct;
-(it also checks alternate spellings
-&Sconstruct;, &sconstruct;, &SConstruct.py;, &Sconstruct.py;
-and &sconstruct.py;
-in that order) in the current directory and reads its
-configuration from that file.
-An alternate file name may be
-specified via the
-<option>-f</option>
-option.
+in the current directory and reads the
+build configuration from that file
+(other names are allowed,
+see <xref linkend="sconscript_files"/> for more information).
 The &SConstruct;
-file can specify subsidiary
+file may specify subsidiary
 configuration files by calling the
-&SConscriptFunc; function.
+&f-link-SConscript; function.
 By convention,
 these subsidiary files are named
 &SConscript;,
 although any name may be used.
 As a result of this naming convention,
 the term <firstterm>SConscript files</firstterm>
-is often used to refer
+is used to refer
 generically to the complete set of
 configuration files for a project
 (including the &SConstruct; file),
@@ -150,37 +166,45 @@ looks for a directory named
 in various system directories and in the directory containing the
 &SConstruct; file
 or, if specified, the
-directory from the <option>--site-dir</option> option instead,
-and prepends the ones it
+directory from the
+<link linkend="opt-site-dir"><option>--site-dir</option></link>
+option instead, and prepends the ones it
 finds to the Python module search path (<varname>sys.path</varname>),
 thus allowing modules in such directories to be imported in
 the normal Python way in SConscript files.
 For each found site directory,
-if it contains a file <filename>site_init.py</filename>
-it is evaluated, and if it contains a directory
-<filename>site_tools</filename> the path to it
+(1) if it contains a file <filename>site_init.py</filename>
+that file is evaluated,
+and (2) if it contains a directory
+<filename>site_tools</filename> the path to that directory
 is prepended to the default toolpath.
 See the
-<option>--site-dir</option>
+<link linkend="opt-site-dir"><option>--site-dir</option></link>
 and
-<option>--no-site-dir</option>
+<link linkend="opt-no-site-dir"><option>--no-site-dir</option></link>
 options for details on default paths and
 controlling the site directories.
 </para>
 
 <para>
-&scons; configuration files are written in the
+SConscript files are written in the
 <firstterm>Python</firstterm> programming language,
 although it is normally not necessary to be a Python
 programmer to use &scons; effectively.
+SConscript files are invoked in a context that makes
+the facilities described in this manual page available
+in their local namespace without any special steps.
 Standard Python scripting capabilities
 such as flow control, data manipulation, and imported Python libraries
 are available to use to handle complicated build situations.
+Other Python files can be made a part of the build system,
+but they do not automatically have the &SCons; context and
+need to import it if they need access (described later).
 </para>
 
 <para>
 &scons;
-reads and executes all of the SConscript files
+reads and executes all of the included SConscript files
 <emphasis>before</emphasis>
 it begins building any targets.
 To make this clear,
@@ -200,7 +224,7 @@ $
 <para>The status messages
 (lines beginning with the <literal>scons:</literal> tag)
 may be suppressed using the
-<option>-Q</option>
+<link linkend="opt-Q"><option>-Q</option></link>
 option.</para>
 
 <para>&scons;
@@ -250,7 +274,7 @@ complete external environment:</para>
 
 <programlisting language="python">
 import os
-env = Environment(ENV=os.environ)
+env = Environment(ENV=os.environ.copy())
 </programlisting>
 
 <para>This comes at the expense of making your build
@@ -263,14 +287,14 @@ integration setups.
 </para>
 
 <para>&scons;
-can scan known input files automatically for dependency
+can scan known input file types automatically for dependency
 information (for example, <literal>#include</literal>
 preprocessor directives in C or C++ files)
 and will rebuild dependent files appropriately
 whenever any "included" input file changes.
 &scons;
 supports the
-ability to define new scanners for unknown input file types.</para>
+ability to define new scanners to support additional input file types.</para>
 
 <para>&scons;
 is normally executed in a top-level directory containing an
@@ -280,9 +304,7 @@ the command line (including the contents of the
 <link linkend="v-SCONSFLAGS">&SCONSFLAGS;</link>
 environment variable, if set) is processed.
 Command-line options (see <xref linkend="options"/>) are consumed.
-Any variable argument assignments
-(see <xref linkend="commandline_construction_variables"/>)
-are collected, and
+Any variable argument assignments are collected, and
 remaining arguments are taken as targets to build.</para>
 
 <para>Values of variables to be passed to the SConscript files
@@ -312,6 +334,71 @@ if necessary. Each &ARGLIST; entry is a tuple containing
 (<replaceable>argname</replaceable>, <replaceable>argvalue</replaceable>).
 </para>
 
+<para>
+See <xref linkend="commandline_construction_variables"/>
+for more information.
+</para>
+
+<para>&scons;
+can maintain a cache of target (derived) files that can
+be shared between multiple builds.  When derived-file caching is enabled in an
+SConscript file, any target files built by
+&scons;
+will be copied
+to the cache.  If an up-to-date target file is found in the cache, it
+will be retrieved from the cache instead of being rebuilt locally.
+Caching behavior may be disabled and controlled in other ways by the
+<link linkend="opt-cache-force"><option>--cache-force</option></link>,
+<link linkend="opt-cache-disable"><option>--cache-disable</option></link>,
+<link linkend="opt-cache-readonly"><option>--cache-readonly</option></link>,
+and
+<link linkend="opt-cache-show"><option>--cache-show</option></link>
+command-line options.  The
+<link linkend="opt-random"><option>--random</option></link>
+option is useful to prevent multiple builds
+from trying to update the cache simultaneously.</para>
+
+<!--  The following paragraph reflects the default tool search orders -->
+<!--  currently in SCons/Tool/__init__.py.  If any of those search orders -->
+<!--  change, this documentation should change, too. -->
+
+<para>By default,
+&scons;
+searches for known programming tools
+on various systems and initializes itself based on what is found.
+On Windows systems which identify as <emphasis>win32</emphasis>,
+&scons;
+searches in order for the
+Microsoft Visual C++ tools,
+the MinGW tool chain,
+the Intel compiler tools,
+and the PharLap ETS compiler.
+On Windows system which identify as <emphasis>cygwin</emphasis>
+(that is, if &scons; is invoked from a cygwin shell),
+the order changes to prefer the GCC toolchain over the MSVC tools.
+On OS/2 systems,
+&scons;
+searches in order for the
+OS/2 compiler,
+the GCC tool chain,
+and the Microsoft Visual C++ tools,
+On SGI IRIX, IBM AIX, Hewlett Packard HP-UX, and Oracle Solaris systems,
+&scons;
+searches for the native compiler tools
+(MIPSpro, Visual Age, aCC, and Forte tools respectively)
+and the GCC tool chain.
+On all other platforms,
+including POSIX (Linux and UNIX) platforms,
+&scons;
+searches in order
+for the GCC tool chain,
+and the Intel compiler tools.
+These default values may be overridden
+by appropriate setting of &consvars;.</para>
+
+<refsect2 id='target_selection'>
+<title>Target Selection</title>
+
 <para>&SCons; acts on the <firstterm>selected targets</firstterm>,
 whether the requested operation is build, no-exec or clean.
 Targets are selected as follows:
@@ -340,14 +427,18 @@ and are made available in the
 </listitem>
 <listitem>
 <para>
-If there are no targets from the previous steps,
+If no targets are selected by the previous steps,
 &scons; selects the current directory for scanning,
 unless command-line options which affect the target
-scan are detected (<option>-C</option>,
-<option>-d</option>, <option>-u</option>, <option>-U</option>).
+scan are detected
+(<link linkend="opt-C"><option>-C</option></link>,
+<link linkend="opt-D"><option>-D</option></link>,
+<link linkend="opt-u"><option>-u</option></link>,
+<link linkend="opt-U"><option>-U</option></link>).
 Since targets thus selected were not the result of
 user instructions, this target list is not made available
-for direct inspection; use the <option>--debug=explain</option>
+for direct inspection; use the
+<link linkend="opt-debug"><option>--debug=explain</option></link>
 option if they need to be examined.
 </para>
 </listitem>
@@ -399,13 +490,17 @@ build:</para>
 </screen>
 
 <para>or by changing directory and invoking scons with the
-<option>-u</option>
+<link linkend="opt-u"><option>-u</option></link>
 option, which traverses up the directory
 hierarchy until it finds the
 &SConstruct;
 file, and then builds
 targets relatively to the current subdirectory (see
-also the related <option>-D</option> and <option>-U</option> options):</para>
+also the related
+<link linkend="opt-D"><option>-D</option></link>
+and
+<link linkend="opt-U"><option>-U</option></link>
+options):</para>
 
 <screen>
 <userinput>cd src/subdir</userinput>
@@ -419,7 +514,7 @@ sure any dependent files are built.</para>
 <para>Specifying "cleanup" targets in SConscript files is
 usually not necessary.
 The
-<option>-c</option>
+<link linkend="opt-clean"><option>-c</option></link>
 flag removes all selected targets:
 </para>
 
@@ -446,7 +541,7 @@ invocation can be retained by calling the
 
 <para>&scons;
 supports building multiple targets in parallel via a
-<option>-j</option>
+<link linkend="opt-j"><option>-j</option></link>
 option that takes, as its argument, the number
 of simultaneous tasks that may be spawned:</para>
 
@@ -456,68 +551,7 @@ of simultaneous tasks that may be spawned:</para>
 
 <para>builds four targets in parallel, for example.</para>
 
-<para>&scons;
-can maintain a cache of target (derived) files that can
-be shared between multiple builds.  When derived-file caching is enabled in an
-SConscript file, any target files built by
-&scons;
-will be copied
-to the cache.  If an up-to-date target file is found in the cache, it
-will be retrieved from the cache instead of being rebuilt locally.
-Caching behavior may be disabled and controlled in other ways by the
-<option>--cache-force</option>,
-<option>--cache-disable</option>,
-<option>--cache-readonly</option>,
-and
-<option>--cache-show</option>
-command-line options.  The
-<option>--random</option>
-option is useful to prevent multiple builds
-from trying to update the cache simultaneously.</para>
-
-<!--  The following paragraph reflects the default tool search orders -->
-<!--  currently in SCons/Tool/__init__.py.  If any of those search orders -->
-<!--  change, this documentation should change, too. -->
-
-<para>By default,
-&scons;
-searches for known programming tools
-on various systems and initializes itself based on what is found.
-On Windows systems which identify as <emphasis>win32</emphasis>,
-&scons;
-searches in order for the
-Microsoft Visual C++ tools,
-the MinGW tool chain,
-the Intel compiler tools,
-and the PharLap ETS compiler.
-On Windows system which identify as <emphasis>cygwin</emphasis>
-(that is, if &scons; is invoked from a cygwin shell),
-the order changes to prefer the GCC toolchain over the MSVC tools.
-On OS/2 systems,
-&scons;
-searches in order for the
-OS/2 compiler,
-the GCC tool chain,
-and the Microsoft Visual C++ tools,
-On SGI IRIX, IBM AIX, Hewlett Packard HP-UX, and Oracle Solaris systems,
-&scons;
-searches for the native compiler tools
-(MIPSpro, Visual Age, aCC, and Forte tools respectively)
-and the GCC tool chain.
-On all other platforms,
-including POSIX (Linux and UNIX) platforms,
-&scons;
-searches in order
-for the GCC tool chain,
-and the Intel compiler tools.
-These default values may be overridden
-by appropriate setting of &consvars;.</para>
-
-<para>&scons;
-requires Python 3.5 or higher.
-There should be no other dependencies or requirements to run &scons;.
-</para>
-
+</refsect2>
 </refsect1>
 
 <refsect1 id='options'>
@@ -539,30 +573,40 @@ and many of those supported by <application>cons</application>.
 <!-- for future development directions. Do not remove. -->
 
 <variablelist>
-  <varlistentry>
+  <varlistentry id="opt-b">
   <term><option>-b</option></term>
   <listitem>
 <para>Ignored for compatibility with non-GNU versions of &Make;</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-clean">
   <term>
     <option>-c</option>,
     <option>--clean</option>,
     <option>--remove</option>
   </term>
   <listitem>
-<para>Clean up by removing the selected targets,
+<para>Set <firstterm>clean</firstterm> mode.
+Clean up by removing the selected targets,
 well as any files or directories associated
 with a selected target through calls to the &f-link-Clean; function.
 Will not remove any targets which are marked for
 preservation through calls to the &f-link-NoClean; function.
 </para>
+<para>
+While clean mode removes targets rather than building them,
+work which is done directly in Python code in SConscript files
+will still be carried out.  If it is important to avoid some
+such work from taking place in clean mode, it should be protected.
+An SConscript file can determine which mode
+is active by querying &f-link-GetOption;, as in the call
+<code>if GetOption("clean"):</code>
+</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-cache-debug">
   <term>-<option>-cache-debug=<replaceable>file</replaceable></option></term>
   <listitem>
 <para>Write debug information about
@@ -579,7 +623,7 @@ derived-file cache specified by &f-link-CacheDir;.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-cache-disable">
   <term>
     <option>--cache-disable</option>,
     <option>--no-cache</option>
@@ -595,7 +639,7 @@ modifying the build scripts.
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-cache-force">
   <term>
     <option>--cache-force</option>,
     <option>--cache-populate</option>
@@ -614,7 +658,7 @@ option.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-cache-readonly">
   <term><option>--cache-readonly</option></term>
   <listitem>
 <para>Use the derived-file cache, if enabled, to retrieve files,
@@ -624,35 +668,36 @@ built during this invocation.
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-show">
   <term><option>--cache-show</option></term>
   <listitem>
-<para>When using a derived-file cache
-and retrieving a file from it,
-show the command
-that would have been executed to build the file.
-Without this option, &scons; reports
-<computeroutput>"Retrieved `file' from cache."</computeroutput>.
+<para>When using a derived-file cache show the command
+that would have been executed to build the file
+(or the corresponding <literal>*COMSTR</literal>
+contents if set)
+even if the file is retrieved from cache.
+Without this option, &scons; shows a cache retrieval message
+if the file is fetched from cache.
 This allows producing consistent output for build logs,
 regardless of whether a target
 file was rebuilt or retrieved from the cache.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-config">
   <term><option>--config=<replaceable>mode</replaceable></option></term>
   <listitem>
-<para>Control how the &Configure;
+<para>Control how the &f-link-Configure;
 call should use or generate the
 results of configuration tests.
-<replaceable>mode</replaceable>should be specified from
-among the following choices:</para>
+<replaceable>mode</replaceable> should be one of
+the following choices:</para>
 
   <variablelist> <!-- nested list -->
   <varlistentry>
   <term><emphasis role="bold">auto</emphasis></term>
   <listitem>
-<para>scons will use its normal dependency mechanisms
+<para>&SCons; will use its normal dependency mechanisms
 to decide if a test must be rebuilt or not.
 This saves time by not running the same configuration tests
 every time you invoke scons,
@@ -666,7 +711,7 @@ This is the default behavior.</para>
   <varlistentry>
   <term><emphasis role="bold">force</emphasis></term>
   <listitem>
-<para>If this option is specified,
+<para>If this mode is specified,
 all configuration tests will be re-run
 regardless of whether the
 cached results are out of date.
@@ -680,7 +725,7 @@ in a system header file or compiler.</para>
   <varlistentry>
   <term><emphasis role="bold">cache</emphasis></term>
   <listitem>
-<para>If this option is specified,
+<para>If this mode is specified,
 no configuration tests will be rerun
 and all results will be taken from cache.
 &scons; will report an error
@@ -694,7 +739,7 @@ have any results in the cache.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-C">
   <term>
     <option>-C <replaceable>directory</replaceable></option>,
     <option>--directory=<replaceable>directory</replaceable></option>
@@ -718,15 +763,15 @@ options are given, each subsequent non-absolute
 <option>-C</option> <replaceable>directory</replaceable>
 is interpreted relative to the preceding one.
 This option is similar to using
-<option>-f <replaceable>directory</replaceable>/SConstruct</option>,
+<link linkend="opt-f"><option>-f <replaceable>directory</replaceable>/SConstruct</option></link>,
 but <option>-f</option> does not search for any of the
 predefined &SConstruct; names
 in the specified directory.
 See also options
-<option>-u</option>,
-<option>-U</option>
+<link linkend="opt-u"><option>-u</option></link>,
+<link linkend="opt-U"><option>-U</option></link>
 and
-<option>-D</option>
+<link linkend="opt-D"><option>-D</option></link>
 to change the &SConstruct; search behavior when this option is used.
 </para>
   </listitem>
@@ -738,11 +783,11 @@ to change the &SConstruct; search behavior when this option is used.
 <!--  figuring out why a specific file is being rebuilt, as well as -->
 <!--  general debugging of the build process. -->
 
-  <varlistentry>
+  <varlistentry id="opt-D">
   <term><option>-D</option></term>
   <listitem>
 <para>Works exactly the same way as the
-<option>-u</option>
+<link linkend="opt-u"><option>-u</option></link>
 option except for the way default targets are handled.
 When this option is used and no targets are specified on the command line,
 all default targets are built, whether or not they are below the current
@@ -750,14 +795,14 @@ directory.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-debug">
   <term><option>--debug=<replaceable>type</replaceable>[<replaceable>,type</replaceable>...]</option></term>
   <listitem>
 <para>Debug the build process.
 <replaceable>type</replaceable>
 specifies the kind of debugging info to emit.
 Multiple types may be specified, separated by commas.
-The following entries show the recognized types:</para>
+The following types are recognized:</para>
 
   <variablelist> <!-- nested list -->
   <varlistentry>
@@ -968,35 +1013,23 @@ should take place in parallel.)
   </listitem>
   </varlistentry>
 
-  <varlistentry>
-  <term><option>--diskcheck=<replaceable>type</replaceable>[<replaceable>,type</replaceable>...]</option></term>
+  <varlistentry id="opt-diskcheck">
+  <term><option>--diskcheck=<replaceable>type</replaceable></option></term>
   <listitem>
 <para>Enable specific checks for
 whether or not there is a file on disk
 where the SCons configuration expects a directory
-(or vice versa),
-and whether or not RCS or SCCS sources exist
+(or vice versa)
 when searching for source and include files.
-The
 <replaceable>type</replaceable>
-argument can be set to:
+can be an available diskcheck type or
+the special tokens <literal>all</literal> or <literal>none</literal>.
+A comma-separated string can be used to select multiple checks.
+The default setting is <literal>all</literal>.
 </para>
 
+<para>Current available checks are:</para>
   <variablelist> <!-- nested list -->
-  <varlistentry>
-  <term><emphasis role="bold">all</emphasis></term>
-  <listitem>
-<para>Enable all checks explicitly (the default behavior).</para>
-  </listitem>
-  </varlistentry>
-
-  <varlistentry>
-  <term><emphasis role="bold">none</emphasis></term>
-  <listitem>
-<para>Disable all such checks.</para>
-  </listitem>
-  </varlistentry>
-
   <varlistentry>
   <term><emphasis role="bold">match</emphasis></term>
   <listitem>
@@ -1004,50 +1037,27 @@ argument can be set to:
 match SCons' expected configuration.</para>
   </listitem>
   </varlistentry>
-
-  <varlistentry>
-  <term><emphasis role="bold">rcs</emphasis></term>
-  <listitem>
-<para>Check for the existence of an RCS source
-for any missing source or include files.</para>
-  </listitem>
-  </varlistentry>
-
-  <varlistentry>
-  <term><emphasis role="bold">sccs</emphasis></term>
-  <listitem>
-<para>Check for the existence of an SCCS source
-for any missing source or include files.</para>
-  </listitem>
-  </varlistentry>
   </variablelist> <!-- end nested list -->
 
 <para>
-Multiple checks can be specified separated by commas.
-for example,
-<option>--diskcheck=sccs,rcs</option>
-would still check for SCCS and RCS sources,
-but disable the check for on-disk matches of files and directories.
 Disabling some or all of these checks
 can provide a performance boost for large configurations,
 or when the configuration will check for files and/or directories
 across networked or shared file systems,
 at the slight increased risk of an incorrect build
-or of not handling errors gracefully
-(if include files really should be
-found in SCCS or RCS, for example,
-or if a file really does exist
-where the SCons configuration expects a directory).</para>
+or of not handling errors gracefully.
+</para>
+
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-duplicate">
   <term><option>--duplicate=<replaceable>ORDER</replaceable></option></term>
   <listitem>
 <para>There are three ways to duplicate files in a build tree: hard links,
-soft (symbolic) links and copies. The default behaviour of SCons is to
-prefer hard links to soft links to copies. You can specify different
-behaviours with this option.
+soft (symbolic) links and copies. The default policy is to
+prefer hard links to soft links to copies. You can specify a
+different policy with this option.
 <replaceable>ORDER</replaceable>
 must be one of
 <emphasis>hard-soft-copy</emphasis>
@@ -1057,7 +1067,7 @@ must be one of
 <emphasis>soft-copy</emphasis>
 or
 <emphasis>copy</emphasis>.
-SCons will attempt to duplicate files using
+&SCons; will attempt to duplicate files using
 the mechanisms in the specified order.</para>
   </listitem>
   </varlistentry>
@@ -1067,34 +1077,53 @@ the mechanisms in the specified order.</para>
 <!--  Variables from the execution environment override construction -->
 <!--  variables from the SConscript files. -->
 
-  <varlistentry>
+  <varlistentry id="opt-enable-virtualenv">
   <term><option>--enable-virtualenv</option></term>
   <listitem>
 <para>Import virtualenv-related variables to SCons.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
-  <term>
-    <option>-f <replaceable>file</replaceable></option>,
-    <option>--file=<replaceable>file</replaceable></option>,
-    <option>--makefile=<replaceable>file</replaceable></option>,
-    <option>--sconstruct=<replaceable>file</replaceable></option>
-  </term>
-  <listitem>
-<para>Use
-<replaceable>file</replaceable>
-as the initial SConscript file.
-Multiple
-<option>-f</option>
-options may be specified,
-in which case
-&scons;
-will read all of the specified files.</para>
-  </listitem>
+  <varlistentry id="opt-experimental">
+    <term>
+      <option>--experimental=<replaceable>feature</replaceable></option>
+    </term>
+    <listitem>
+      <para>Enable experimental features and/or tools.
+        <replaceable>feature</replaceable> can be an available feature name or
+        the special tokens <literal>all</literal> or <literal>none</literal>.
+        A comma-separated string can be used to select multiple features.
+        The default setting is <literal>none</literal>.</para>
+      <para>Current available features are: <literal>ninja</literal>.</para>
+      <caution><para>
+        No Support offered for any features or tools enabled by this flag.
+      </para></caution>
+      <para><emphasis>Available since &scons; 4.2.</emphasis></para>
+    </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-f">
+    <term>
+      <option>-f <replaceable>file</replaceable></option>,
+      <option>--file=<replaceable>file</replaceable></option>,
+      <option>--makefile=<replaceable>file</replaceable></option>,
+      <option>--sconstruct=<replaceable>file</replaceable></option>
+    </term>
+    <listitem>
+      <para>Use
+        <replaceable>file</replaceable>
+        as the initial SConscript file.
+        Multiple
+        <option>-f</option>
+        options may be specified,
+        in which case
+        &scons;
+        will read all of the specified files.
+      </para>
+    </listitem>
+  </varlistentry>
+
+  <varlistentry id="opt-h">
   <term>
     <option>-h</option>,
     <option>--help</option>
@@ -1117,7 +1146,54 @@ the help message not to be displayed.
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-hash-chunksize">
+  <term>
+    <option>--hash-chunksize=<replaceable>KILOBYTES</replaceable></option>
+  </term>
+  <listitem>
+<para>Set the block size used when computing content signatures to
+<replaceable>KILOBYTES</replaceable>.
+This value determines the size of the chunks which are read in at once when
+computing signature hashes.  Files below that size are fully stored in memory
+before performing the signature computation while bigger files are read in
+block-by-block. A huge block-size leads to high memory consumption while a very
+small block-size slows down the build considerably.</para>
+
+<para>The default value is to use a chunk size of 64 kilobytes, which should
+be appropriate for most uses.</para>
+
+<para><emphasis>Available since &scons; 4.2.</emphasis></para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry id="opt-hash-format">
+  <term>
+    <option>--hash-format=<replaceable>ALGORITHM</replaceable></option>
+  </term>
+  <listitem>
+<para>Set the hashing algorithm used by SCons to
+<replaceable>ALGORITHM</replaceable>.
+This value determines the hashing algorithm used in generating content
+signatures or &f-link-CacheDir; keys.</para>
+
+<para>The supported list of values are: md5, sha1, and sha256.
+However, the Python interpreter used to run SCons must have the corresponding
+support available in the <systemitem>hashlib</systemitem> module
+to use the specified algorithm.</para>
+
+<para>Specifying this value changes the name of the SConsign database.
+For example, <option>--hash-format=sha256</option> will create a SConsign
+database with name <filename>.sconsign_sha256.dblite</filename>.</para>
+
+<para>If this option is not specified, a hash format of
+md5 is used, and the SConsign database is
+<filename>.sconsign.dblite</filename>.</para>
+
+<para><emphasis>Available since &scons; 4.2.</emphasis></para>
+  </listitem>
+</varlistentry>
+
+  <varlistentry id="opt-H">
   <term>
     <option>-H</option>,
     <option>--help-options</option>
@@ -1128,7 +1204,7 @@ command-line options and exit.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-i">
   <term>
     <option>-i</option>,
     <option>--ignore-errors</option>
@@ -1139,7 +1215,7 @@ command-line options and exit.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-I">
   <term>
     <option>-I <replaceable>directory</replaceable></option>,
     <option>--include-dir=<replaceable>directory</replaceable></option>
@@ -1155,14 +1231,14 @@ are used, the directories are searched in the order specified.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-ignore-virtualenv">
   <term><option>--ignore-virtualenv</option></term>
   <listitem>
 <para>Suppress importing virtualenv-related variables to SCons.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-implicit-cache">
   <term><option>--implicit-cache</option></term>
   <listitem>
 <para>Cache implicit dependencies.
@@ -1191,7 +1267,7 @@ than a current implicit dependency with the same name.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-implicit-deps-changed">
   <term><option>--implicit-deps-changed</option></term>
   <listitem>
 <para>Forces SCons to ignore the cached implicit dependencies. This causes the
@@ -1200,7 +1276,7 @@ implicit dependencies to be rescanned and recached. This implies
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-implicit-deps-unchanged">
   <term><option>--implicit-deps-unchanged</option></term>
   <listitem>
 <para>Force SCons to ignore changes in the implicit dependencies.
@@ -1210,7 +1286,7 @@ This implies
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-install-sandbos">
   <term><option>--install-sandbox=<replaceable>sandbox_path</replaceable></option></term>
   <listitem>
 <para>
@@ -1224,7 +1300,7 @@ one of &b-link-Install;, &b-link-InstallAs; or
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-interactive">
   <term><option>--interactive</option></term>
   <listitem>
 <para>Starts SCons in interactive mode.
@@ -1381,7 +1457,7 @@ scons&gt;&gt;&gt; exit
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-j">
   <term>
     <option>-j <replaceable>N</replaceable></option>,
     <option>--jobs=<replaceable>N</replaceable></option>
@@ -1401,7 +1477,7 @@ option, the last one is effective.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-k">
   <term>
     <option>-k</option>,
     <option>--keep-going</option>
@@ -1442,14 +1518,14 @@ targets specified on the command line will still be processed.</para>
 <!--  [XXX This can probably go away with the right -->
 <!--  combination of other options.  Revisit this issue.] -->
 
-  <varlistentry>
+  <varlistentry id="opt-m">
   <term><option>-m</option></term>
   <listitem>
 <para>Ignored for compatibility with non-GNU versions of &Make;.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-max-drift">
   <term><option>--max-drift=<replaceable>SECONDS</replaceable></option></term>
   <listitem>
 <para>Set the maximum expected drift in the modification time of files to
@@ -1472,20 +1548,15 @@ no matter how old the file is.</para>
   <varlistentry>
   <term><option>--md5-chunksize=<replaceable>KILOBYTES</replaceable></option></term>
   <listitem>
-<para>Set the block size used to compute MD5 signatures to
-<replaceable>KILOBYTES</replaceable>.
-This value determines the size of the chunks which are read in at once when
-computing MD5 signatures.  Files below that size are fully stored in memory
-before performing the signature computation while bigger files are read in
-block-by-block. A huge block-size leads to high memory consumption while a very
-small block-size slows down the build considerably.</para>
+<para>A deprecated synonym for
+<link linkend="opt-hash-chunksize"><option>--hash-chunksize</option></link>.
+</para>
 
-<para>The default value is to use a chunk size of 64 kilobytes, which should
-be appropriate for most uses.</para>
+<para><emphasis>Deprecated since &scons; 4.2.</emphasis></para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-n">
   <term>
     <option>-n</option>,
     <option>--no-exec</option>,
@@ -1494,16 +1565,33 @@ be appropriate for most uses.</para>
     <option>--recon</option>
   </term>
   <listitem>
-<para>No execute.  Print the commands that would be executed to build
+<para>Set <firstterm>no execute</firstterm> mode.
+Print the commands that would be executed to build
 any out-of-date target files, but do not execute the commands.</para>
+
+<para>The output is a best effort, as &SCons; cannot always precisely
+determine what would be built.  For example, if a file is generated
+by a builder action that is later used in the build,
+that file is not available to scan for dependencies on an unbuilt tree,
+or may contain out of date information in a built tree.
+</para>
+<para>
+Work which is done directly in Python code in SConscript files,
+as opposed to work done by builder actions during the build phase,
+will still be carried out.  If it is important to avoid some
+such work from taking place in no execute mode, it should be protected.
+An SConscript file can determine which mode
+is active by querying &f-link-GetOption;, as in the call
+<code>if GetOption("no_exec"):</code>
+</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-no-site-dir">
   <term><option>--no-site-dir</option></term>
   <listitem>
 <para>Prevents the automatic addition of the standard
-<emphasis>site_scons</emphasis>
+<filename>site_scons</filename>
 dirs to
 <varname>sys.path</varname>.
 Also prevents loading the
@@ -1545,7 +1633,7 @@ dirs to the toolpath.</para>
 <!--  scons \-p \-q -->
 <!--  .EE -->
 
-  <varlistentry>
+  <varlistentry id="opt-package-type">
   <term><option>--package-type=<replaceable>type</replaceable></option></term>
   <listitem>
 <para>The type or types
@@ -1559,7 +1647,7 @@ has been enabled.
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-profile">
   <term><option>--profile=<replaceable>file</replaceable></option></term>
   <listitem>
 <para>Run SCons under the Python profiler
@@ -1570,7 +1658,7 @@ pstats module.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-q">
   <term>
     <option>-q</option>,
     <option>--question</option></term>
@@ -1581,7 +1669,7 @@ date, non-zero otherwise.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-Q">
   <term><option>-Q</option></term>
   <listitem>
 <para>Quiets SCons status messages about
@@ -1598,7 +1686,7 @@ to rebuild target files are still printed.</para>
 <!--  Clear the default construction variables.  Construction -->
 <!--  environments that are created will be completely empty. -->
 
-  <varlistentry>
+  <varlistentry id="opt-random">
   <term><option>--random</option></term>
   <listitem>
 <para>Build dependencies in a random order.  This is useful when
@@ -1608,7 +1696,7 @@ or retrieve the same target files.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-s">
   <term>
     <option>-s</option>,
     <option>--silent</option>,
@@ -1621,7 +1709,7 @@ Also suppresses SCons status messages.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-S">
   <term>
     <option>-S</option>,
     <option>--no-keep-going</option>,
@@ -1632,12 +1720,12 @@ Also suppresses SCons status messages.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-site-dir">
   <term><option>--site-dir=<replaceable>dir</replaceable></option></term>
   <listitem>
 <para>Uses the named <replaceable>dir</replaceable> as the site directory
 rather than the default
-<emphasis>site_scons</emphasis>
+<filename>site_scons</filename>
 directories.  This directory will be prepended to
 <varname>sys.path</varname>,
 the module
@@ -1647,7 +1735,7 @@ will be loaded if it exists, and
 will be added to the default toolpath.</para>
 
 <para>The default set of
-<emphasis>site_scons</emphasis>
+<filename>site_scons</filename>
 directories used when
 <option>--site-dir</option>
 is not specified depends on the system platform, as follows.
@@ -1712,7 +1800,7 @@ $HOME/.scons/site_scons
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-stack-size">
   <term><option>--stack-size=<replaceable>KILOBYTES</replaceable></option></term>
   <listitem>
 <para>Set the size stack used to run threads to
@@ -1736,7 +1824,7 @@ unless you encounter stack overflow errors.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-t">
   <term>
     <option>-t</option>,
     <option>--touch</option>
@@ -1748,7 +1836,7 @@ appear up-to-date is unnecessary when using &scons;.)</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-taskmastertrace">
   <term><option>--taskmastertrace=<replaceable>file</replaceable></option></term>
   <listitem>
 <para>Prints trace information to the specified
@@ -1761,7 +1849,7 @@ may be used to specify the standard output.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-tree">
   <term><option>--tree=<replaceable>type</replaceable>[<replaceable>,type</replaceable>...]</option></term>
   <listitem>
 <para>Prints a tree of the dependencies
@@ -1841,7 +1929,7 @@ choices may be specified, separated by commas:</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-u">
   <term>
     <option>-u</option>,
     <option>--up</option>,
@@ -1859,7 +1947,7 @@ current directory will be built.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-U">
   <term><option>-U</option></term>
   <listitem>
 <para>Works exactly the same way as the
@@ -1872,7 +1960,7 @@ up in.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-v">
   <term>
     <option>-v</option>,
     <option>--version</option>
@@ -1886,7 +1974,7 @@ Then exit.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-print-directory">
   <term>
     <option>-w</option>,
     <option>--print-directory</option>
@@ -1897,14 +1985,14 @@ after other processing.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-no-print-directory">
   <term><option>--no-print-directory</option></term>
   <listitem>
 <para>Turn off -w, even if it was turned on implicitly.</para>
   </listitem>
   </varlistentry>
 
-  <varlistentry>
+  <varlistentry id="opt-warn">
   <term>
     <option>--warn=<replaceable>type</replaceable></option>,
     <option>--warn=no-<replaceable>type</replaceable></option>
@@ -2136,7 +2224,7 @@ These warnings are enabled by default.</para>
 <!--  .B \-n -->
 <!--  ... what? XXX -->
 
-  <varlistentry>
+  <varlistentry id="opt-Y">
   <term>
     <option>-Y <replaceable>repository</replaceable></option>,
     <option>--repository=<replaceable>repository</replaceable></option>,
@@ -2154,10 +2242,62 @@ repositories are searched in the order specified.</para>
 </variablelist>
 </refsect1>
 
-<refsect1 id='configuration_file_reference'>
-<title>CONFIGURATION FILE REFERENCE</title>
-<!--  .SS Python Basics -->
-<!--  XXX Adding this in the future would be a help. -->
+<refsect1 id='sconscript_file_reference'>
+<title>SCONSCRIPT FILE REFERENCE</title>
+
+<refsect2 id='sconscript_files'>
+<title>SConscript Files</title>
+<para>
+The build configuration is described by one or more files,
+known as SConscript files.
+There must be at least one file for a valid build
+(&scons; will quit if it does not find one).
+&scons; by default looks for this file by the name
+<filename>SConstruct</filename>
+in the directory from which you run &scons;,
+though if necessary, also looks for alternative file names
+&Sconstruct;, &sconstruct;, &SConstruct.py;, &Sconstruct.py;
+and &sconstruct.py; in that order.
+A different file name (which can include a pathname part)
+may be specified via the <option>-f</option> option.
+Except for the SConstruct file,
+these files are not searched for automatically;
+you add additional configuration files to the build
+by calling the &f-link-SConscript; function.
+This allows parts of the build to be conditionally
+included or excluded at run-time depending on how &scons; is invoked.
+</para>
+
+<para>
+Each SConscript file in a build configuration is invoked
+independently in a separate context.
+This provides necessary isolation so that different parts of
+the build don't accidentally step on each other.
+You have to be explicit about sharing information,
+by using the &f-link-Export; function or the &exports; argument
+to the &SConscript; function, as well as the &f-link-Return; function
+in a called SConscript file, and comsume shared information by using the
+&f-link-Import; function.
+</para>
+
+<para>
+The following sections describe the various &SCons; facilities
+that can be used in SConscript files.  Quick links:
+</para>
+
+<simplelist type="vert">
+  <member><link linkend='construction_environments'>Construction Environments</link></member>
+  <member><link linkend='tools'>Tools</link></member>
+  <member><link linkend='builder_methods'>Builder Methods</link></member>
+  <member><link linkend='methods_and_functions_to_do_things'>Methods and Functions to do Things</link></member>
+  <member><link linkend='sconscript_variables'>SConscript Variables</link></member>
+  <member><link linkend='construction_variables'>Construction Variables</link></member>
+  <member><link linkend='configure_contexts'>Configure Contexts</link></member>
+  <member><link linkend='commandline_construction_variables'>Command-Line Construction Variables</link></member>
+  <member><link linkend='node_objects'>Node Objects</link></member>
+</simplelist>
+
+</refsect2>
 
 <refsect2 id='construction_environments'>
 <title>Construction Environments</title>
@@ -2503,7 +2643,7 @@ A nested tool name uses a dot to represent a directory separator</para>
 
 <programlisting language="python">
 # namespaced builder
-env = Environment(ENV=os.environ, tools=['SubDir1.SubDir2.SomeTool'])
+env = Environment(ENV=os.environ.copy(), tools=['SubDir1.SubDir2.SomeTool'])
 env.SomeTool(targets, sources)
 
 # Search Paths
@@ -2541,34 +2681,58 @@ env.SomeTool(targets, sources)
 <title>Builder Methods</title>
 
 <para>You tell &scons; what to build
-by calling <firstterm>Builders</firstterm>, functions which know to take a
-particular action to produce a particular result type
-when given source files of a particular type. &scons;
+by calling <firstterm>Builders</firstterm>,
+functions which take
+particular action(s) to produce a particular result type
+(conventionally described by the builder name such as &b-Program;)
+when given source files of a particular type.
+Calling a builder defines one or more targets to the build system;
+whether the targets are actually built on a given
+invocation is determined by command-line options,
+target selection rules, and whether &SCons;
+determines the target(s) are out of date.
+</para>
+
+<para>
+&SCons;
 defines a number of builders, and you can also write your own.
 Builders are attached to a &consenv; as methods,
 and the available builder methods are listed as
 key-value pairs in the
-<envar>BUILDERS</envar> attribute of the &consenv;.
+<varname>BUILDERS</varname> attribute of the &consenv;.
 The available builders can be displayed like this
 for debugging purposes:
 </para>
 
 <programlisting language="python">
+env = Environment()
 print("Builders:", list(env['BUILDERS']))
 </programlisting>
 
 <para>
-Builder methods always take two arguments:
-<replaceable>target</replaceable>
-(a target or a list of targets to be built)
+Builder methods take two required arguments:
+<parameter>target</parameter>
 and
-<replaceable>source</replaceable>
-(a source or list of sources to be used as input
-when building),
-although in some circumstances,
-the target argument can actually be omitted (see below).
+<parameter>source</parameter>.
+Either can be passed as a scalar or as a list.
+The <parameter>target</parameter> and
+<parameter>source</parameter> arguments
+can be specified either as positional arguments,
+in which case <parameter>target</parameter> comes first, or as
+keyword arguments, using <parameter>target=</parameter>
+and <parameter>source=</parameter>.
+Although both arguments are nominally required,
+if there is a single source and the target can be inferred
+the <parameter>target</parameter> argument can be omitted (see below).
 Builder methods also take a variety of
 keyword arguments, described below.
+</para>
+
+<para>
+The builder <emphasis>may</emphasis> add other targets
+beyond those requested if indicated by an <firstterm>Emitter</firstterm>
+(see <xref linkend="builder_objects"/> and, for example,
+&cv-link-PROGEMITTER; for more information).
 </para>
 
 <para>Because long lists of file names
@@ -2584,11 +2748,6 @@ strings of white-space characters as the delimiter.
 method, but succeeds even if the input isn't a string.)</para>
 
 <para>
-The target and source arguments to a builder method
-can be specified either as positional arguments,
-in which case the target comes first, or as
-keyword arguments, using <parameter>target=</parameter>
-and <parameter>source=</parameter>.
 The following are equivalent examples of calling the
 &Program; builder method:
 </para>
@@ -2616,6 +2775,7 @@ contains separator characters, the search follows down
 from the starting point, which is the top of the directory tree for
 an absolute path and the current directory for a relative path.
 </para>
+
 <para>
 &scons; recognizes a third way to specify
 path strings: if the string begins with
@@ -2633,7 +2793,8 @@ to a relative or absolute path first.
 </para>
 
 <para>
-Target and source pathnames can be absolute, relative, or
+<parameter>target</parameter> and <parameter>source</parameter>
+can be absolute, relative, or
 top-relative. Relative pathnames are searched considering the
 directory of the SConscript
 file currently being processed as the "current directory".
@@ -2757,7 +2918,7 @@ broken into individual settings and merged into the appropriate &consvars;.
 </para>
 
 <programlisting language="python">
-env = Program('hello', 'hello.c', parse_flags='-Iinclude -DEBUG -lm')
+env.Program('hello', 'hello.c', parse_flags='-Iinclude -DEBUG -lm')
 </programlisting>
 
 <para>This example adds 'include' to
@@ -2785,7 +2946,7 @@ has determined are appropriate for the local system.</para>
 
 <para>Builder methods that can be called without an explicit
 environment (indicated in the listing of builders without
-a leading <literal><replaceable>env</replaceable>.</literal>)
+a leading <varname>env.</varname>)
 may be called from custom Python modules that you
 import into an SConscript file by adding the following
 to the Python module:</para>
@@ -2794,32 +2955,42 @@ to the Python module:</para>
 from SCons.Script import *
 </programlisting>
 
-<para>All builder methods return a list-like object
-containing Nodes that will be built.
-A <firstterm>Node</firstterm>
-is an internal SCons object
-which represents
-build targets or sources.
-See <xref linkend="node_objects"/> for more information.</para>
-
-<para>The returned Node-list object
+<para>Builder methods return a <classname>NodeList</classname>,
+a list-like object whose elements are Nodes,
+&SCons;' internal representation of build targets or sources.
+See <xref linkend="node_objects"/> for more information.
+The returned <classname>NodeList</classname> object
 can be passed to other builder methods as source(s)
 or passed to any &SCons; function or method
 where a filename would normally be accepted.
-For example, if it were necessary
+</para>
+
+<para> For example,
 to add a specific preprocessor define
-when compiling one specific object file:</para>
+when compiling one specific object file
+but not the others:</para>
 
 <programlisting language="python">
 bar_obj_list = env.StaticObject('bar.c', CPPDEFINES='-DBAR')
-env.Program(source=['foo.c', bar_obj_list, 'main.c'])
+env.Program("prog", ['foo.c', bar_obj_list, 'main.c'])
 </programlisting>
 
-<para>Using a Node in this way
+<para>Using a Node as in this example
 makes for a more portable build
 by avoiding having to specify
 a platform-specific object suffix
-when calling the &Program; builder method.</para>
+when calling the &Program; builder method.
+</para>
+
+<para>The <classname>NodeList</classname> object
+is also convenient to pass to the &f-link-Default; function,
+for the same reason of avoiding a platform-specific name:
+</para>
+
+<programlisting language="python">
+tgt = env.Program("prog", ["foo.c", "bar.c", "main.c"])
+Default(tgt)
+</programlisting>
 
 <para>Builder calls will automatically "flatten"
 lists passed as source and target, so they are free to
@@ -2858,7 +3029,7 @@ operator (<literal>+</literal> or <literal>+=</literal>)
 to append builder results to a Python list.
 Because the list and the object are different types,
 Python will not update the original list in place,
-but will instead create a new Node-list object
+but will instead create a new <classname>NodeList</classname> object
 containing the concatenation of the list
 elements and the builder results.
 This will cause problems for any other Python variables
@@ -2891,9 +3062,10 @@ bar_obj_list = env.StaticObject('bar.c', CPPDEFINES='-DBAR')
 print("The path to bar_obj is:", str(bar_obj_list[0]))
 </programlisting>
 
-<para>Note again that because the Builder call returns a list,
-we have to access the first element in the list
-(<literal>(bar_obj_list[0])</literal>)
+<para>Note that because the Builder call returns a
+<classname>NodeList</classname>,
+you have to access the first element in the list,
+(<literal>bar_obj_list[0]</literal> in the example)
 to get at the Node that actually represents
 the object file.</para>
 
@@ -2954,6 +3126,19 @@ and
 <literal>${SOURCE.file}</literal>
 to use just the filename portion of the
 targets and source.</para>
+
+<para>
+When trying to handle errors that may occur in a builder method,
+consider that the corresponding Action is executed at a different
+time than the SConscript file statement calling the builder.
+It is not useful to wrap a builder call in a
+<systemitem>try</systemitem> block,
+since success in the builder call is not the same as
+the builder itself succeeding.
+If necessary, a Builder's Action should be coded to exit with
+a useful exception message indicating the problem in the SConscript files -
+programmatically recovering from build errors is rarely useful.
+</para>
 
 <para>&scons;
 predefines the following builder methods.
@@ -3351,17 +3536,17 @@ from SCons.Script import *
 <para>A &consenv; has an associated dictionary of
 <firstterm>&consvars;</firstterm>
 that are used by built-in or user-supplied build rules.
-&Consvar; naming must follow the same rules as for
-Python identifiers:
+&Consvar; naming must follow the same rules as
+Python identifier naming:
 the initial character must be an underscore or letter,
-followed by any number of underscores, letters, or digits.</para>
-
-<para>A &consenv; is not a Python dictionary,
+followed by any number of underscores, letters, or digits.
+A &consenv; is not a Python dictionary itself,
 but it can be indexed like one to access a
 &consvar;:</para>
 
 <programlisting language="python">
 env["CC"] = "cc"
+flags = env.get("CPPDEFINES", [])
 </programlisting>
 
 <para>&Consvars; can also be retrieved and set
@@ -3388,14 +3573,38 @@ env = Environment(CC="cc")
 env2 = env.Clone(CC="cl.exe")
 </programlisting>
 
+<para>
+&Consvars; can also be supplied as keyword
+arguments to a builder, in which case those settings
+affect only the work done by that builder call,
+and not the &consenv; as a whole.
+This concept is called an <firstterm>override</firstterm>:
+</para>
+
+<programlisting language="python">
+env.Program('hello', 'hello.c', LIBS=['gl', 'glut'])
+</programlisting>
+
 <para>A number of useful &consvars; are automatically defined by
-scons for each supported platform, and additional &consvars;
-can be defined by the user. The following is a list of the possible
-automatically defined &consvars;.  The actual list available
-at execution time will not include all of these, as the ones
+scons for each supported platform, and you can modify these
+or define any additional &consvars; for your own use,
+taking care not to overwrite ones which &SCons; is using.
+The following is a list of the possible
+automatically defined &consvars;.
+</para>
+
+<para>Note the actual list available
+at execution time will never include all of these, as the ones
 detected as not being useful (wrong platform, necessary
 external command or files not installed, etc.) will not be set up.
-:</para>
+Correct build setups should be resilient to the possible
+absence of certain &consvars; before using them,
+for example by using a &Python; dictionary
+<function>get</function> method to retrieve the value and
+taking alternative action if the return indicates the variable is unset.
+The &f-link-env-Dump; method can be called to examine the
+&consvars; set in a particular environment.
+</para>
 
 <!-- '\""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""" -->
 <!-- '\" BEGIN GENERATED CONSTRUCTION VARIABLE DESCRIPTIONS -->
@@ -3560,7 +3769,7 @@ if not conf.CheckCHeader("math.h"):
     Exit(1)
 if conf.CheckLibWithHeader("qt", "qapp.h", "c++", "QApplication qapp(0,0);"):
     # do stuff for qt - usage, e.g.
-    conf.env.Append(CPPFLAGS="-DWITH_QT")
+    conf.env.Append(CPPDEFINES="WITH_QT")
 env = conf.Finish()
 </programlisting>
 
@@ -4785,6 +4994,13 @@ is not being used.</para>
   </varlistentry>
 
   <varlistentry>
+  <term><replaceable>n</replaceable>.<varname>relpath</varname></term>
+  <listitem>
+<para>The build path of the given file or directory relative to the root SConstruct file's directory.</para>
+  </listitem>
+  </varlistentry>
+
+  <varlistentry>
   <term><replaceable>n</replaceable>.<function>srcnode</function>()</term>
   <listitem>
 <para>The
@@ -4805,6 +5021,8 @@ File or Directory Node.
 Dir('.').path
 # Current dir's absolute path
 Dir('.').abspath
+# Current dir's path relative to the root SConstruct file's directory
+Dir('.').relpath
 # Next line is always '.', because it is the top dir's path relative to itself.
 Dir('#.').path
 File('foo.c').srcnode().path   # source path of the given source file.
@@ -4933,21 +5151,27 @@ to a &consenv;.
 <emphasis>In general</emphasis>,
 you should only need to add a new Builder object
 when you want to build a new type of file or other external target.
-If you just want to invoke a different compiler or other tool
-to build &Program;, &Object;, &Library;, or any other
-type of output file for which
-&scons;
-already has an existing Builder,
-it is generally much easier to
-use those existing Builders
-in a &consenv;
-that sets the appropriate &consvars;
-(<envar>CC</envar>, <envar>LINK</envar>, etc.).</para>
+For output file types &scons; already knows about,
+you can usually modify the behavior of premade Builders
+such as &b-link-Program;, &b-link-Object; or &b-link-Library;
+by changing the &consvars; they use
+(&cv-link-CC;, &cv-link-LINK;, etc.).
+In this manner you can, for example, change the compiler to use,
+which is simpler and less error-prone than writing a new builder.
+The documentation for each Builder lists which
+&consvars; it uses.
+</para>
 
 <para>Builder objects are created
 using the
 &f-link-Builder;
 factory function.
+Once created, a builder is added to an environment
+by entering it in the &cv-link-BUILDERS; dictionary
+in that environment (some of the examples
+in this section illustrate that). </para>
+
+<para>
 The
 &f-Builder;
 function accepts the following keyword arguments:</para>
@@ -4956,33 +5180,33 @@ function accepts the following keyword arguments:</para>
   <varlistentry>
   <term><parameter>action</parameter></term>
   <listitem>
-<para>The command line string used to build the target from the source.
+<para>The command used to build the target from the source.
 <parameter>action</parameter>
-can also be:
+may be a string representing a template command line to execute,
 a list of strings representing the command
-to be executed and its arguments
+to execute with its arguments
 (suitable for enclosing white space in an argument),
 a dictionary
 mapping source file name suffixes to
 any combination of command line strings
 (if the builder should accept multiple source file extensions),
-a Python function;
+a Python function,
 an Action object
-(see the next section);
+(see <xref linkend="action_objects"/>)
 or a list of any of the above.</para>
 
-<para>An action function takes three arguments:</para>
+<para>An action function must accept three arguments:
+<parameter>source</parameter>,
+<parameter>target</parameter> and
+<parameter>env</parameter>.
+<parameter>source</parameter> is a list of source nodes;
+<parameter>target</parameter> is a list of target nodes;
+<parameter>env</parameter> is the &consenv; to use for context.
+</para>
 
-  <simplelist type="vert">
-  <member><parameter>source</parameter> - a list of source nodes;.</member>
-  <member><parameter>target</parameter> - a list of target nodes;.</member>
-  <member><parameter>env</parameter> - the &consenv;.</member>
-  </simplelist>
-
-<para>The
-<parameter>action</parameter>
-and
-<parameter>generator</parameter>
+<para>
+The <parameter>action</parameter>
+and <parameter>generator</parameter>
 arguments must not both be used for the same Builder.</para>
   </listitem>
   </varlistentry>
@@ -4990,37 +5214,31 @@ arguments must not both be used for the same Builder.</para>
   <varlistentry>
   <term><parameter>prefix</parameter></term>
   <listitem>
-<para>The prefix that will be prepended to the target file name.
-<parameter>prefix</parameter> may be:</para>
-
-  <itemizedlist>
-  <listitem><para>a string</para></listitem>
-  <listitem><para>a callable object -
-a function or other callable that takes
+<para>The prefix to prepend to the target file name.
+<parameter>prefix</parameter> may be
+a string, a function (or other callable) that takes
 two arguments (a &consenv; and a list of sources)
-and returns a prefix</para></listitem>
-  <listitem><para>a dictionary -
-specifies a mapping from a specific source suffix (of the first
-source specified) to a corresponding target prefix.  Both the source
-suffix and target prefix specifications may use environment variable
-substitution, and the target prefix (the 'value' entries in the
-dictionary) may also be a callable object.  The default target prefix
-may be indicated by a dictionary entry with a key value of <constant>None</constant>.</para>
-  </listitem>
-  </itemizedlist>
+and returns a prefix string,
+or a dictionary specifying a mapping from a specific source suffix
+(of the first source specified)
+to a corresponding target prefix string.  For the dictionary form, both the source
+suffix (key) and target prefix (value) specifications may use environment variable
+substitution, and the target prefix
+may also be a callable object.  The default target prefix
+may be indicated by a dictionary entry with a key of <constant>None</constant>.</para>
 
 <programlisting language="python">
 b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
-            prefix = "file-")
+            prefix="file-")
 
 def gen_prefix(env, sources):
     return "file-" + env['PLATFORM'] + '-'
-b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
-            prefix = gen_prefix)
 
 b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
-            suffix = { None: "file-",
-                       "$SRC_SFX_A": gen_prefix })
+            prefix=gen_prefix)
+
+b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
+            suffix={None: "file-", "$SRC_SFX_A": gen_prefix})
 </programlisting>
   </listitem>
   </varlistentry>
@@ -5028,27 +5246,27 @@ b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
   <varlistentry>
   <term><parameter>suffix</parameter></term>
   <listitem>
-<para>The suffix that will be appended to the target file name.
-This may be specified in the same manner as the prefix above.
+<para>The suffix to append to the target file name.
+Specified in the same manner as for <parameter>prefix</parameter> above.
 If the suffix is a string, then
 &scons;
-will append a '.' to the beginning of the suffix if it's not already
-there.  The string returned by callable object (or obtained from the
-dictionary) is untouched and must append its own '.'  to the beginning
-if one is desired.</para>
+prepends a <literal>'.'</literal> to the suffix if it's not already there.
+The string returned by the callable object or obtained from the
+dictionary is untouched and you need to manually prepend a <literal>'.'</literal>
+if one is required.</para>
 
 <programlisting language="python">
 b = Builder("build_it &lt; $SOURCE &gt; $TARGET"
-            suffix = "-file")
+            suffix="-file")
 
 def gen_suffix(env, sources):
     return "." + env['PLATFORM'] + "-file"
-b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
-            suffix = gen_suffix)
 
 b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
-            suffix = { None: ".sfx1",
-                       "$SRC_SFX_A": gen_suffix })
+            suffix=gen_suffix)
+
+b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
+            suffix={None: ".sfx1", "$SRC_SFX_A": gen_suffix})
 </programlisting>
   </listitem>
   </varlistentry>
@@ -5056,21 +5274,21 @@ b = Builder("build_it &lt; $SOURCE &gt; $TARGET",
   <varlistentry>
   <term><parameter>ensure_suffix</parameter></term>
   <listitem>
-<para>When set to any true value, causes
-&scons;
-to add the target suffix specified by the
-<parameter>suffix</parameter>
-keyword to any target strings
-that have a different suffix.
-(The default behavior is to leave untouched
-any target file name that looks like it already has any suffix.)</para>
+<para>If set to a true value,
+ensures that targets will end in 
+<parameter>suffix</parameter>.
+Thus, the suffix will also be added to any target strings
+that have a suffix that is not already <parameter>suffix</parameter>.
+The default behavior (also indicated by a false value)
+is to leave unchanged
+any target string that looks like it already has a suffix.</para>
 
 <programlisting language="python">
 b1 = Builder("build_it &lt; $SOURCE &gt; $TARGET"
              suffix = ".out")
 b2 = Builder("build_it &lt; $SOURCE &gt; $TARGET"
              suffix = ".out",
-             ensure_suffix)
+             ensure_suffix=True)
 env = Environment()
 env['BUILDERS']['B1'] = b1
 env['BUILDERS']['B2'] = b2
@@ -5088,8 +5306,9 @@ env.B2('bar.txt', 'bar.in')
   <varlistentry>
   <term><parameter>src_suffix</parameter></term>
   <listitem>
-<para>The expected source file name suffix.  This may be a string or a list
-of strings.</para>
+<para>The expected source file name suffix.
+<parameter>src_suffix</parameter>
+may be a string or a list of strings.</para>
   </listitem>
   </varlistentry>
 
@@ -5216,13 +5435,15 @@ to emitter functions.
 is used to select the actual emitter function
 from an emitter dictionary.)</para>
 
-<para>An emitter function takes three arguments:</para>
-
-  <simplelist type="vert">
-  <member><parameter>source</parameter> - a list of source nodes.</member>
-  <member><parameter>target</parameter> - a list of target nodes.</member>
-  <member><parameter>env</parameter> - the &consenv;.</member>
-  </simplelist>
+<para>A function passed as <parameter>emitter</parameter>
+must accept three arguments:
+<parameter>source</parameter>,
+<parameter>target</parameter> and
+<parameter>env</parameter>.
+<parameter>source</parameter> is a list of source nodes,
+<parameter>target</parameter> is a list of target nodes,
+<parameter>env</parameter> is the &consenv; to use for context.
+</para>
 
 <para>An emitter must return a tuple containing two lists,
 the list of targets to be built by this builder,
@@ -5272,7 +5493,7 @@ b = Builder("my_build &lt; $TARGET &gt; $SOURCE",
   <term><parameter>multi</parameter></term>
   <listitem>
 <para>Specifies whether this builder is allowed to be called multiple times for
-the same target file(s). The default is <constant>0</constant>,
+the same target file(s). The default is <constant>False</constant>,
 which means the builder
 can not be called multiple times for the same target file(s). Calling a
 builder multiple times for the same target simply adds additional source
@@ -5306,18 +5527,21 @@ an Action object, or anything that
 can be converted into an Action object
 (see the next section).</para>
 
-<para>The generator function takes four arguments:</para>
-
-  <simplelist type="vert">
-  <member><parameter>source</parameter> - A list of source nodes;.</member>
-  <member><parameter>target</parameter> - A list of target nodes;.</member>
-  <member><parameter>env</parameter> - the &consenv;.</member>
-  <member><parameter>for_signature</parameter> -
-    A Boolean value that specifies
-    whether the generator is being called
-    for generating a build signature
-    (as opposed to actually executing the command).</member>
-  </simplelist>
+<para>A function passed as <parameter>generator</parameter>
+must accept four arguments:
+<parameter>source</parameter>,
+<parameter>target</parameter>,
+<parameter>env</parameter> and
+<parameter>for_signature</parameter>.
+<parameter>source</parameter> is a list of source nodes,
+<parameter>target</parameter> is a list of target nodes,
+<parameter>env</parameter> is the &consenv; to use for context,
+<parameter>for_signature</parameter> is
+a Boolean value that specifies
+whether the generator is being called
+for generating a build signature
+(as opposed to actually executing the command).
+</para>
 
 <para>Example:</para>
 
@@ -5371,12 +5595,9 @@ called with a list of source files with different extensions,
 this check can be suppressed by setting
 <parameter>source_ext_match</parameter>
 to
-<parameter>None</parameter>
+<constant>False</constant>
 or some other non-true value.
-When
-<parameter>source_ext_match</parameter>
-is disable,
-&scons;
+In this case, &scons;
 will use the suffix of the first specified
 source file to select the appropriate action from the
 <parameter>action</parameter>
@@ -5395,7 +5616,7 @@ and
 
 <programlisting language="python">
 b = Builder(action={'.in' : 'build $SOURCES &gt; $TARGET'},
-            source_ext_match = None)
+            source_ext_match=False)
 
 env = Environment(BUILDERS={'MyBuild':b})
 env.MyBuild('foo.out', ['foo.in', 'foo.extra'])
@@ -5523,7 +5744,7 @@ and emitter functions.</para>
 
 <para>The
 &f-link-Builder;
-function will turn its
+factory function will turn its
 <parameter>action</parameter>
 keyword argument into an appropriate
 internal Action object, as will
@@ -5545,25 +5766,25 @@ you need to create the action object using &f-Action;.
 <para>The
 &Action; factory function
 returns an appropriate object for the action
-represented by the type of the action argument
+represented by the type of the
+<parameter>action</parameter> argument
 (the first positional parmeter):</para>
 
 <itemizedlist>
   <listitem>
-<para>If the action argument is already an Action object,
+<para>If <parameter>action</parameter> is already an Action object,
 the object is simply returned.</para>
   </listitem>
 
   <listitem>
-<para>If the action argument is a string,
+<para>If <parameter>action</parameter> is a string,
 a command-line Action is returned.
-If such a string begins with
-<emphasis role="bold">@</emphasis>,
-it indicates printing of the command line is to be suppressed.
-If the string begins with
-<emphasis role="bold">-</emphasis> (hyphen),
-it indicates the exit status from the specified command
-is to be ignored, allowing execution to continue
+If such a string begins with <literal>@</literal>,
+the command line is not printed.
+If the string begins with hyphen
+(<literal>-</literal>),
+the exit status from the specified command
+is ignored, allowing execution to continue
 even if the command reports failure:</para>
 
 <programlisting language="python">
@@ -5578,14 +5799,13 @@ Action('-build $TARGET $SOURCES')
   </listitem>
 
   <listitem>
-<para>If the action argument is a list,
+<para>If <parameter>action</parameter> is a list,
 then a list of Action objects is returned.
 An Action object is created as necessary
 for each element in the list.
-If an element
-<emphasis>within</emphasis>
+If an element within
 the list is itself a list,
-the internal list is taken as the
+the embedded list is taken as the
 command and arguments to be executed via
 the command line.
 This allows white space to be enclosed
@@ -5598,18 +5818,19 @@ Action([['cc', '-c', '-DWHITE SPACE', '-o', '$TARGET', '$SOURCES']])
   </listitem>
 
   <listitem>
-<para>If the action argument is a Python function,
-a function Action is returned.
-The Python function must accept three keyword arguments:</para>
-
-  <simplelist type="vert">
-  <member><parameter>target</parameter> -
-    a Node object representing the target file.</member>
-  <member><parameter>source</parameter> -
-    a Node object representing the source file.</member>
-  <member><parameter>env</parameter> -
-    the &consenv; used for building the target file.</member>
-  </simplelist>
+<para>If <parameter>action</parameter> is a callable object,
+a Function Action is returned.
+The callable must accept three keyword arguments:
+<parameter>target</parameter>,
+<parameter>source</parameter> and
+<parameter>env</parameter>.
+<parameter>target</parameter>
+is a Node object representing the target file,
+<parameter>source</parameter>
+is a Node object representing the source file and
+<parameter>env</parameter>
+is the &consenv; used for building the target file.
+</para>
 
 <para>
 The
@@ -5646,17 +5867,22 @@ a = Action(build_it)
   </listitem>
 
   <listitem>
-<para>If the action argument is not one of the above types,
-<constant>None</constant> is returned.</para>
+<para>If
+<parameter>action</parameter>
+is not one of the above types,
+no action object is generated and &f-Action;
+returns <constant>None</constant>.</para>
   </listitem>
 </itemizedlist>
 
-<para>As usual the environment method form &f-link-env-Action;
+<para>The environment method form &f-link-env-Action;
 will expand &consvars; in any argument strings,
-including the action argument, at the time it is called,
+including
+<parameter>action</parameter>,
+at the time it is called,
 using the construction variables in the &consenv; through which
 it was called. The global function form &f-link-Action;
-<emphasis>delays</emphasis> variable expansion until
+delays variable expansion until
 the Action object is actually used.
 </para>
 
@@ -5672,30 +5898,7 @@ The following argument types are accepted:
 
 <itemizedlist>
   <listitem>
-<para>If the output argument is a function,
-the function will be called to obtain a string
-describing the action being executed.
-The function
-must accept these three keyword arguments:</para>
-
-  <simplelist type="vert">
-  <member><parameter>source</parameter> -
-    a Node object representing the source file.</member>
-  <member><parameter>target</parameter> -
-    a Node object representing the target file.</member>
-  <member><parameter>env</parameter> - the &consenv;.</member>
-  </simplelist>
-
-<para>The
-<parameter>target</parameter>
-and
-<parameter>source</parameter>
-arguments may be lists of Node objects if there is
-more than one target file or source file.</para>
-  </listitem>
-
-  <listitem>
-<para>If the output argument is a string,
+<para>If <parameter>output</parameter> is a string,
 substitution is performed on the string before it is printed.
 The string typically contains variables, notably
 <literal>$TARGET(S)</literal> and <literal>$SOURCE(S)</literal>,
@@ -5705,7 +5908,21 @@ variable, which is optionally defined somewhere else.
   </listitem>
 
   <listitem>
-<para>If the argument is <constant>None</constant>,
+<para>If <parameter>output</parameter> is a function,
+the function will be called to obtain a string
+describing the action being executed.
+The function
+must accept three keyword arguments:
+<parameter>target</parameter>,
+<parameter>source</parameter> and
+<parameter>env</parameter>,
+with the same interpretation as for a callable
+<parameter>action</parameter> argument above.
+</para>
+  </listitem>
+
+  <listitem>
+<para>If <parameter>output</parameter>is  <constant>None</constant>,
 output is suppressed entirely.</para>
   </listitem>
 </itemizedlist>
@@ -5715,8 +5932,8 @@ Instead of using a positional argument,
 the <parameter>cmdstr</parameter>
 keyword argument may be used to specify the output string,
 or the <parameter>strfunction</parameter> keyword argument
-may be used to specify a function to return the output string,
-Use <literal>cmdstr=None</literal> to suppress output.
+may be used to specify a function to return the output string.
+<literal>cmdstr=None</literal> suppresses output entirely.
 </para>
 
 <para>Examples:</para>
@@ -5782,30 +5999,25 @@ to modify the Action object's behavior:</para>
   <term><parameter>chdir</parameter></term>
   <listitem>
 <para>
-Specifies that
-scons will execute the action
-after changing to the specified directory.
-If the
-<parameter>chdir</parameter>
-argument is
-a string or a directory Node,
-scons will change to the specified directory.
-If the
-<parameter>chdir</parameter>
-argument
-is not a string or Node
-and is non-zero,
-then scons will change to the
+If <parameter>chdir</parameter> is true
+(the default is <constant>False</constant>),
+&SCons; will change directories before
+executing the action.
+If the value of <parameter>chdir</parameter>
+is a string or a directory Node,
+&SCons; will change to the specified directory.
+Otherwise, if <parameter>chdir</parameter> evaluates true,
+&SCons; will change to the
 target file's directory.</para>
 
-<para>Note that scons will
+<para>Note that &SCons; will
 <emphasis>not</emphasis>
 automatically modify
 its expansion of
 &consvars; like
 &cv-TARGET; and &cv-SOURCE;
 when using the <parameter>chdir</parameter>
-keyword argument--that is,
+parameter - that is,
 the expanded file names
 will still be relative to
 the top-level directory containing the &SConstruct; file,
@@ -5821,8 +6033,7 @@ to use just the filename portion of the
 targets and source. Example:</para>
 
 <programlisting language="python">
-a = Action("build &lt; ${SOURCE.file} &gt; ${TARGET.file}",
-           chdir=1)
+a = Action("build &lt; ${SOURCE.file} &gt; ${TARGET.file}", chdir=True)
 </programlisting>
   </listitem>
   </varlistentry>
@@ -5830,11 +6041,10 @@ a = Action("build &lt; ${SOURCE.file} &gt; ${TARGET.file}",
   <term><parameter>exitstatfunc</parameter></term>
   <listitem>
 <para>
-A function
-that is passed the exit status
-(or return value)
-from the specified action
-and can return an arbitrary
+If provided, must be a callable which accepts a single parameter,
+the exit status (or return value)
+from the specified action,
+and which returns an arbitrary
 or modified value.
 This can be used, for example,
 to specify that an Action object's
@@ -5857,7 +6067,7 @@ a = Action("build &lt; ${SOURCE.file} &gt; ${TARGET.file}",
   <term><parameter>batch_key</parameter></term>
   <listitem>
 <para>
-Specifies that the Action can create multiple target files
+If provided, indicates that the Action can create multiple target files
 by processing multiple independent source files simultaneously.
 (The canonical example is "batch compilation"
 of multiple object files
@@ -5894,33 +6104,33 @@ will be used to identify different
 for batch building.
 A
 <parameter>batch_key</parameter>
-function must accept the following arguments:</para>
-
-  <simplelist>
-  <member><parameter>action</parameter> - The action object.</member>
-  <member><parameter>env</parameter> -
-    The &consenv; configured for the target.</member>
-  <member><parameter>target</parameter> -
-    The list of targets for a particular configured action.</member>
-  <member><parameter>source</parameter> -
-    The list of source for a particular configured action.</member>
-  </simplelist>
+function must accept four parameters:
+<parameter>action</parameter>,
+<parameter>env</parameter>,
+<parameter>target</parameter> and
+<parameter>source</parameter>.
+The first parameter, <parameter>action</parameter>,
+is the active action object.
+The second parameter, <parameter>env</parameter>,
+is the &consenv; configured for the target.
+The <parameter>target</parameter> and <parameter>source</parameter>
+parameters are the lists of targets and sources
+for the configured action.
+</para>
 
 <para>The returned key should typically
 be a tuple of values derived from the arguments,
 using any appropriate logic to decide
 how multiple invocations should be batched.
 For example, a
-<function>batch_key</function>
+<parameter>batch_key</parameter>
 function may decide to return
-the value of a specific construction
-variable from the
-<parameter>env</parameter>
-argument
+the value of a specific &consvar;
+from <parameter>env</parameter>
 which will cause
 &scons;
 to batch-build targets
-with matching values of that variable,
+with matching values of that &consvar;,
 or perhaps return the
 Python <function>id</function>()
 of the entire &consenv;,
@@ -5957,8 +6167,8 @@ a = Action('build $CHANGED_SOURCES', batch_key=batch_key)
 <refsect2 id='miscellaneous_action_functions'>
 <title>Miscellaneous Action Functions</title>
 
-<para>&scons;
-supplies a number of functions
+<para>&SCons;
+supplies Action functions
 that arrange for various common
 file and directory manipulations
 to be performed.
@@ -5973,8 +6183,8 @@ return an Action object
 that can be executed at the
 appropriate time.</para>
 
-<para>In practice,
-there are two natural ways
+<para>
+There are two natural ways
 that these
 Action Functions
 are intended to be used.</para>
@@ -5986,7 +6196,7 @@ at the time the SConscript
 file is being read,
 you can use the
 &f-link-Execute;
-global function to do so:</para>
+global function:</para>
 
 <programlisting language="python">
 Execute(Touch('file'))
@@ -6043,6 +6253,12 @@ env.Command('foo.out', 'foo.in',
             [Copy('$TARGET', '$SOURCE'),
              Chmod('$TARGET', "ugo+w")])
 </programlisting>
+
+<para>
+The behavior of <function>Chmod</function> is limited on Windows,
+see the notes in the Python documentation for
+<systemitem>os.chmod</systemitem>, which is the underlying function.
+</para>
 
   </listitem>
   </varlistentry>
@@ -6106,12 +6322,14 @@ Execute(Delete('file_that_must_exist', must_exist=True))
   </varlistentry>
 
   <varlistentry>
-  <term><function>Mkdir</function>(<parameter>dir</parameter>)</term>
+  <term><function>Mkdir</function>(<parameter>name</parameter>)</term>
   <listitem>
 <para>Returns an Action
-that creates the specified
-directory
-<parameter>dir</parameter>.
+that creates the directory
+<parameter>name</parameter>
+and all needed intermediate directories.
+<parameter>name</parameter> may also be a list
+of directories to create.
 Examples:</para>
 
 <programlisting language="python">
@@ -6317,6 +6535,7 @@ These are known as <firstterm>special attributes</firstterm>.
   <member><parameter>filebase</parameter> - Like <parameter>file</parameter> but minus its suffix.</member>
   <member><parameter>suffix</parameter> - Just the file suffix.</member>
   <member><parameter>abspath</parameter> - The absolute path name of the file.</member>
+  <member><parameter>relpath</parameter> - The path name of the file relative to the root SConstruct file's directory.</member>
   <member><parameter>posix</parameter> -
     The path with directories separated by forward slashes
     (<emphasis role="bold">/</emphasis>).
@@ -6370,6 +6589,11 @@ ${TARGET.file}       =&gt; file.x
 ${TARGET.filebase}   =&gt; file
 ${TARGET.suffix}     =&gt; .x
 ${TARGET.abspath}    =&gt; /top/dir/sub/dir/file.x
+${TARGET.relpath}    =&gt; sub/dir/file.x
+
+$TARGET              =&gt; ../dir2/file.x
+${TARGET.abspath}    =&gt; /top/dir2/file.x
+${TARGET.relpath}    =&gt; ../dir2/file.x
 
 SConscript('src/SConscript', variant_dir='sub/dir')
 $SOURCE              =&gt; sub/dir/file.x
@@ -6879,20 +7103,35 @@ suffix as a C source file.</para>
 </refsect2>
 
 <refsect2 id='f_file_suffix'>
-<title>.F file suffix</title>
+<title>Fortran file suffixes</title>
 
-<para>&scons; handles the upper-case
-<filename>.F</filename>
-file suffix differently,
+<para>&scons; handles upper-case
+Fortran file suffixes differently
 depending on the capabilities of
 the underlying system.
 On a case-sensitive system
 such as Linux or UNIX,
 &scons; treats a file with a
 <filename>.F</filename>
-suffix as a Fortran source file
+as a Fortran source file
 that is to be first run through
-the standard C preprocessor.
+the standard C preprocessor,
+while the lower-case version is not.
+This matches the convention of <command>gfortran</command>,
+which may also be followed by other Fortran compilers.
+This also applies to other naming variants,
+<filename>.FOR</filename>,
+<filename>.FTN</filename>,
+<filename>.F90</filename>,
+<filename>.F95</filename>,
+<filename>.F03</filename> and
+<filename>.F08</filename>;
+files suffixed with
+<filename>.FPP</filename>
+and <filename>.fpp</filename>
+are both run through the preprocessor,
+as indicated by the <literal>pp</literal>
+part of the name.
 On a case-insensitive system
 such as Windows,
 &scons; treats a file with a
@@ -6900,6 +7139,15 @@ such as Windows,
 suffix as a Fortran source file that should
 <emphasis>not</emphasis>
 be run through the C preprocessor.</para>
+<para>
+<emphasis>Run through the C preprocessor</emphasis>
+here means that a different set of &consvars; will
+be applied in constructed commands, for example
+&cv-link-FORTRANPPCOM; and &cv-link-FORTRANPPCOMSTR;
+instead of
+&cv-link-FORTRANCOM; and &cv-link-FORTRANCOMSTR;.
+See the Fortran-related &consvars; for more details.
+</para>
 </refsect2>
 
 <refsect2 id='windows_cygwin_tools_and_cygwin_python_v'>
@@ -7585,8 +7833,14 @@ release, it may be necessary to specify
   <varlistentry id="v-SCONSFLAGS">
     <term><envar>SCONSFLAGS</envar></term>
     <listitem>
-<para>A string of options that will be used by &scons;
-in addition to those passed on the command line.</para>
+<para>A string containing options that will be used by &scons;
+in addition to those passed on the command line.
+Can be used to reduce frequent retyping of common options.
+The contents of <envar>SCONSFLAGS</envar> are considered
+before any passed command line options,
+so the command line can be used to override
+<envar>SCONSFLAGS</envar> options if necessary.
+</para>
     </listitem>
   </varlistentry>
 
@@ -7595,8 +7849,8 @@ in addition to those passed on the command line.</para>
     <listitem>
 <para>(Windows only). If set, save the shell environment variables
 generated when setting up the Microsoft Visual C++ compiler
-(and/or Build Tools) to a file to give these settings,
-which are expensive to generate, persistence
+(and/or Build Tools) to a cache file, to give these settings,
+which are relatively expensive to generate, persistence
 across &scons; invocations.
 Use of this option is primarily intended to aid performance
 in tightly controlled Continuous Integration setups.</para>

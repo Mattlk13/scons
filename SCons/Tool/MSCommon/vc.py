@@ -1,5 +1,7 @@
 #
-# __COPYRIGHT__
+# MIT License
+#
+# Copyright The SCons Foundation
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -20,6 +22,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #
+"""Module for Visual C/C++ detection and configuration.
 
 # TODO:
 #   * gather all the information from a single vswhere call instead
@@ -33,10 +36,8 @@
 #   * test on 64 bits XP +  VS 2005 (and VS 6 if possible)
 #   * SDK
 #   * Assembly
-__revision__ = "__FILE__ __REVISION__ __DATE__ __DEVELOPER__"
-
-__doc__ = """Module for Visual C/C++ detection and configuration.
 """
+
 import SCons.compat
 import SCons.Util
 
@@ -203,7 +204,7 @@ def get_host_target(env):
 
     # Retain user requested TARGET_ARCH
     req_target_platform = env.get('TARGET_ARCH')
-    debug("HOST_ARCH:" + str(req_target_platform))
+    debug("TARGET_ARCH:" + str(req_target_platform))
     if req_target_platform:
         # If user requested a specific platform then only try that one.
         target_platform = req_target_platform
@@ -220,9 +221,12 @@ def get_host_target(env):
         target = _ARCH_TO_CANONICAL[target_platform.lower()]
     except KeyError:
         all_archs = str(list(_ARCH_TO_CANONICAL.keys()))
-        raise MSVCUnsupportedTargetArch("Unrecognized target architecture %s\n\tValid architectures: %s" % (target_platform, all_archs))
+        raise MSVCUnsupportedTargetArch(
+            "Unrecognized target architecture %s\n\tValid architectures: %s"
+            % (target_platform, all_archs)
+        )
 
-    return (host, target,req_target_platform)
+    return (host, target, req_target_platform)
 
 # If you update this, update SupportedVSList in Tool/MSCommon/vs.py, and the
 # MSVC_VERSION documentation in Tool/msvc.xml.
@@ -443,7 +447,7 @@ def find_vc_pdir(env, msvc_version):
                 comps = find_vc_pdir_vswhere(msvc_version, env)
                 if not comps:
                     debug('no VC found for version {}'.format(repr(msvc_version)))
-                    raise SCons.Util.WinError
+                    raise OSError
                 debug('VC found: {}'.format(repr(msvc_version)))
                 return comps
             else:
@@ -451,13 +455,13 @@ def find_vc_pdir(env, msvc_version):
                     try:
                         # ordinarily at win64, try Wow6432Node first.
                         comps = common.read_reg(root + 'Wow6432Node\\' + key, hkroot)
-                    except SCons.Util.WinError as e:
+                    except OSError:
                         # at Microsoft Visual Studio for Python 2.7, value is not in Wow6432Node
                         pass
                 if not comps:
                     # not Win64, or Microsoft Visual Studio for Python 2.7
                     comps = common.read_reg(root + key, hkroot)
-        except SCons.Util.WinError as e:
+        except OSError:
             debug('no VC registry key {}'.format(repr(key)))
         else:
             debug('found VC in registry: {}'.format(comps))

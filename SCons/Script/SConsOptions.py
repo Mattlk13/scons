@@ -21,24 +21,26 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+import gettext
 import optparse
 import re
 import sys
 import textwrap
 
-no_hyphen_re = re.compile(r'(\s+|(?<=[\w!\"\'&.,?])-{2,}(?=\w))')
-
-import gettext
-_ = gettext.gettext
-
 import SCons.Node.FS
 import SCons.Platform.virtualenv
 import SCons.Warnings
+from . import Main
 
-OptionValueError        = optparse.OptionValueError
-SUPPRESS_HELP           = optparse.SUPPRESS_HELP
+no_hyphen_re = re.compile(r'(\s+|(?<=[\w!\"\'&.,?])-{2,}(?=\w))')
+_ = gettext.gettext
+OptionValueError = optparse.OptionValueError
+SUPPRESS_HELP = optparse.SUPPRESS_HELP
 
 diskcheck_all = SCons.Node.FS.diskcheck_types()
+
+experimental_features = {'warp_speed', 'transporter', 'ninja'}
+
 
 def diskcheck_convert(value):
     if value is None:
@@ -93,8 +95,9 @@ class SConsValues(optparse.Values):
     """
 
     def __init__(self, defaults):
-        self.__dict__['__defaults__'] = defaults
-        self.__dict__['__SConscript_settings__'] = {}
+        self.__defaults__ = defaults
+        self.__SConscript_settings__ = {}
+
 
     def __getattr__(self, attr):
         """
@@ -126,45 +129,60 @@ class SConsValues(optparse.Values):
         'clean',
         'diskcheck',
         'duplicate',
+        'experimental',
+        'hash_chunksize',
+        'hash_format',
         'help',
         'implicit_cache',
+        'implicit_deps_changed',
+        'implicit_deps_unchanged',
         'max_drift',
         'md5_chunksize',
         'no_exec',
+        'no_progress',
         'num_jobs',
         'random',
+        'silent',
         'stack_size',
         'warn',
-        'silent',
-        'no_progress'
     ]
 
     def set_option(self, name, value):
-        """
-        Sets an option from an SConscript file.
-        """
-        if name not in self.settable:
-            raise SCons.Errors.UserError("This option is not settable from a SConscript file: %s"%name)
+        """Sets an option from an SConscript file.
 
+        Raises:
+            UserError: invalid or malformed option ("error in your script")
+        """
+
+        if name not in self.settable:
+            raise SCons.Errors.UserError(
+                "This option is not settable from a SConscript file: %s" % name
+            )
+
+        # the following are for options that need some extra processing
         if name == 'num_jobs':
             try:
                 value = int(value)
                 if value < 1:
                     raise ValueError
             except ValueError:
-                raise SCons.Errors.UserError("A positive integer is required: %s"%repr(value))
+                raise SCons.Errors.UserError(
+                    "A positive integer is required: %s" % repr(value)
+                )
         elif name == 'max_drift':
             try:
                 value = int(value)
             except ValueError:
-                raise SCons.Errors.UserError("An integer is required: %s"%repr(value))
+                raise SCons.Errors.UserError("An integer is required: %s" % repr(value))
         elif name == 'duplicate':
             try:
                 value = str(value)
             except ValueError:
-                raise SCons.Errors.UserError("A string is required: %s"%repr(value))
+                raise SCons.Errors.UserError("A string is required: %s" % repr(value))
             if value not in SCons.Node.FS.Valid_Duplicates:
-                raise SCons.Errors.UserError("Not a valid duplication style: %s" % value)
+                raise SCons.Errors.UserError(
+                    "Not a valid duplication style: %s" % value
+                )
             # Set the duplicate style right away so it can affect linking
             # of SConscript files.
             SCons.Node.FS.set_duplicate(value)
@@ -172,7 +190,7 @@ class SConsValues(optparse.Values):
             try:
                 value = diskcheck_convert(value)
             except ValueError as v:
-                raise SCons.Errors.UserError("Not a valid diskcheck value: %s"%v)
+                raise SCons.Errors.UserError("Not a valid diskcheck value: %s" % v)
             if 'diskcheck' not in self.__dict__:
                 # No --diskcheck= option was specified on the command line.
                 # Set this right away so it can affect the rest of the
@@ -182,12 +200,13 @@ class SConsValues(optparse.Values):
             try:
                 value = int(value)
             except ValueError:
-                raise SCons.Errors.UserError("An integer is required: %s"%repr(value))
-        elif name == 'md5_chunksize':
+                raise SCons.Errors.UserError("An integer is required: %s" % repr(value))
+        elif name in ('md5_chunksize', 'hash_chunksize'):
             try:
                 value = int(value)
             except ValueError:
-                raise SCons.Errors.UserError("An integer is required: %s"%repr(value))
+                raise SCons.Errors.UserError("An integer is required: %s" % repr(value))
+            name = 'md5_chunksize'  # for now, the old name is used
         elif name == 'warn':
             if SCons.Util.is_String(value):
                 value = [value]
@@ -195,7 +214,13 @@ class SConsValues(optparse.Values):
             SCons.Warnings.process_warn_strings(value)
         elif name == 'no_progress':
             SCons.Script.Main.progress_display.set_mode(False)
-
+        elif name == 'experimental':
+            if SCons.Util.is_String(value):
+                value = [value]
+            value = self.__SConscript_settings__.get(name, []) + value
+        elif name in ('implicit_deps_changed', 'implicit_deps_unchanged'):
+            if value:
+                self.__SConscript_settings__['implicit_cache'] = True
 
         self.__SConscript_settings__[name] = value
 
@@ -225,7 +250,10 @@ class SConsOption(optparse.Option):
             fmt = "option %s: nargs='?' is incompatible with short options"
             raise SCons.Errors.UserError(fmt % self._short_opts[0])
 
-    CHECK_METHODS = optparse.Option.CHECK_METHODS + [_check_nargs_optional]
+    CHECK_METHODS = optparse.Option.CHECK_METHODS
+    if CHECK_METHODS is None:
+        CHECK_METHODS = []
+    CHECK_METHODS = CHECK_METHODS + [_check_nargs_optional]
     CONST_ACTIONS = optparse.Option.CONST_ACTIONS + optparse.Option.TYPED_ACTIONS
 
 class SConsOptionGroup(optparse.OptionGroup):
@@ -496,6 +524,7 @@ class SConsIndentedHelpFormatter(optparse.IndentedHelpFormatter):
             result.append("\n")
         return "".join(result)
 
+
 def Parser(version):
     """
     Returns an options parser object initialized with the standard
@@ -593,7 +622,7 @@ def Parser(version):
         errmsg  = "`%s' is not a valid %s option type " % (value, group)
         return errmsg + msg
 
-    config_options = ["auto", "force" ,"cache"]
+    config_options = ["auto", "force", "cache"]
 
     opt_config_help = "Controls Configure subsystem: %s." \
                       % ", ".join(config_options)
@@ -601,7 +630,7 @@ def Parser(version):
     op.add_option('--config',
                   nargs=1, choices=config_options,
                   dest="config", default="auto",
-                  help = opt_config_help,
+                  help=opt_config_help,
                   metavar="MODE")
 
     op.add_option('-D',
@@ -694,6 +723,40 @@ def Parser(version):
                      action="store_true",
                      help="Import certain virtualenv variables to SCons")
 
+    def experimental_callback(option, opt, value, parser):
+        experimental = getattr(parser.values, option.dest)
+
+        if ',' in value:
+            value = value.split(',')
+        else:
+            value = [value]
+
+        for v in value:
+            if v == 'none':
+                experimental = set()
+            elif v == 'all':
+                experimental = experimental_features
+            elif v not in experimental_features:
+                raise OptionValueError(
+                    "option --experimental: invalid choice: '%s' "
+                    "(choose from 'all','none',%s)"
+                    % (v, ','.join(["'%s'" % e for e in sorted(experimental_features)]))
+                )
+            else:
+                experimental |= {v}
+
+        setattr(parser.values, option.dest, experimental)
+
+
+    op.add_option('--experimental',
+                  dest='experimental',
+                  action='callback',
+                  default=set(), # empty set
+                  type='str',
+                  # choices=experimental_options+experimental_features,
+                  callback =experimental_callback,
+                  help='Enable experimental features')
+
     op.add_option('-f', '--file', '--makefile', '--sconstruct',
                   nargs=1, type="string",
                   dest="file", default=[],
@@ -708,6 +771,27 @@ def Parser(version):
     op.add_option("-H", "--help-options",
                   action="help",
                   help="Print this message and exit.")
+
+    def warn_md5_chunksize_deprecated(option, opt, value, parser):
+        if opt == '--md5-chunksize':
+            SCons.Warnings.warn(SCons.Warnings.DeprecatedWarning,
+                                "Parameter %s is deprecated. Use "
+                                "--hash-chunksize instead." % opt)
+
+        setattr(parser.values, option.dest, value)
+
+    op.add_option('--hash-chunksize', '--md5-chunksize',
+                  nargs=1, type="int",
+                  dest='md5_chunksize', default=SCons.Node.FS.File.hash_chunksize,
+                  action="callback",
+                  help="Set chunk-size for hash signature computation to N kilobytes.",
+                  callback=warn_md5_chunksize_deprecated,
+                  metavar="N")
+
+    op.add_option('--hash-format',
+                  dest='hash_format',
+                  action='store',
+                  help='Hash format (e.g. md5, sha1, or sha256).')
 
     op.add_option('-i', '--ignore-errors',
                   dest='ignore_errors', default=False,
@@ -769,21 +853,14 @@ def Parser(version):
                   help="Set maximum system clock drift to N seconds.",
                   metavar="N")
 
-    op.add_option('--md5-chunksize',
-                  nargs=1, type="int",
-                  dest='md5_chunksize', default=SCons.Node.FS.File.md5_chunksize,
-                  action="store",
-                  help="Set chunk-size for MD5 signature computation to N kilobytes.",
-                  metavar="N")
-
     op.add_option('-n', '--no-exec', '--just-print', '--dry-run', '--recon',
                   dest='no_exec', default=False,
                   action="store_true",
                   help="Don't build; just print commands.")
 
     op.add_option('--no-site-dir',
-                  dest='no_site_dir', default=False,
-                  action="store_true",
+                  dest='site_dir',
+                  action="store_false",
                   help="Don't search or use the usual site_scons dir.")
 
     op.add_option('--profile',
@@ -837,7 +914,6 @@ def Parser(version):
     tree_options = ["all", "derived", "prune", "status", "linedraw"]
 
     def opt_tree(option, opt, value, parser, tree_options=tree_options):
-        from . import Main
         tp = Main.TreePrinter()
         for o in value.split(','):
             if o == 'all':

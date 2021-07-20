@@ -29,16 +29,19 @@ import json
 import os
 import stat
 import sys
+import uuid
 
 import SCons.Action
 import SCons.Errors
 import SCons.Warnings
+import SCons
 
 cache_enabled = True
 cache_debug = False
 cache_force = False
 cache_show = False
 cache_readonly = False
+cache_tmp_uuid = uuid.uuid4().hex
 
 def CacheRetrieveFunc(target, source, env):
     t = target[0]
@@ -55,7 +58,7 @@ def CacheRetrieveFunc(target, source, env):
         if fs.islink(cachefile):
             fs.symlink(fs.readlink(cachefile), t.get_internal_path())
         else:
-            env.copy_from_cache(cachefile, t.get_internal_path())
+            cd.copy_from_cache(env, cachefile, t.get_internal_path())
             try:
                 os.utime(cachefile, None)
             except OSError:
@@ -100,27 +103,21 @@ def CachePushFunc(target, source, env):
 
     cd.CacheDebug('CachePush(%s):  pushing to %s\n', t, cachefile)
 
-    tempfile = cachefile+'.tmp'+str(os.getpid())
+    tempfile = "%s.tmp%s"%(cachefile,cache_tmp_uuid)
     errfmt = "Unable to copy %s to cache. Cache file is %s"
 
-    if not fs.isdir(cachedir):
-        try:
-            fs.makedirs(cachedir)
-        except EnvironmentError:
-            # We may have received an exception because another process
-            # has beaten us creating the directory.
-            if not fs.isdir(cachedir):
-                msg = errfmt % (str(target), cachefile)
-                raise SCons.Errors.SConsEnvironmentError(msg)
-
+    try:
+        fs.makedirs(cachedir, exist_ok=True)
+    except OSError:
+        msg = errfmt % (str(target), cachefile)
+        raise SCons.Errors.SConsEnvironmentError(msg)
     try:
         if fs.islink(t.get_internal_path()):
             fs.symlink(fs.readlink(t.get_internal_path()), tempfile)
         else:
-            fs.copy2(t.get_internal_path(), tempfile)
+            cd.copy_to_cache(env, t.get_internal_path(), tempfile)
         fs.rename(tempfile, cachefile)
-        st = fs.stat(t.get_internal_path())
-        fs.chmod(cachefile, stat.S_IMODE(st[stat.ST_MODE]) | stat.S_IWRITE)
+
     except EnvironmentError:
         # It's possible someone else tried writing the file at the
         # same time we did, or else that there was some problem like
@@ -194,7 +191,6 @@ class CacheDir:
                 msg = "Failed to read cache configuration for " + path
                 raise SCons.Errors.SConsEnvironmentError(msg)
 
-
     def CacheDebug(self, fmt, target, cachefile):
         if cache_debug != self.current_cache_debug:
             if cache_debug == '-':
@@ -213,6 +209,24 @@ class CacheDir:
             self.debugFP.write("requests: %d, hits: %d, misses: %d, hit rate: %.2f%%\n" %
                                (self.requests, self.hits, self.misses, self.hit_ratio))
 
+    @classmethod
+    def copy_from_cache(cls, env, src, dst):
+        if env.cache_timestamp_newer:
+            return env.fs.copy(src, dst)
+        else:
+            return env.fs.copy2(src, dst)
+
+    @classmethod
+    def copy_to_cache(cls, env, src, dst):
+        try:
+            result = env.fs.copy2(src, dst)
+            fs = env.File(src).fs
+            st = fs.stat(src)
+            fs.chmod(dst, stat.S_IMODE(st[stat.ST_MODE]) | stat.S_IWRITE)
+            return result
+        except AttributeError as ex:
+            raise EnvironmentError from ex
+
     @property
     def hit_ratio(self):
         return (100.0 * self.hits / self.requests if self.requests > 0 else 100)
@@ -226,6 +240,11 @@ class CacheDir:
 
     def is_readonly(self):
         return cache_readonly
+
+    def get_cachedir_csig(self, node):
+        cachedir, cachefile = self.cachepath(node)
+        if cachefile and os.path.exists(cachefile):
+            return SCons.Util.hash_file_signature(cachefile, SCons.Node.FS.File.hash_chunksize)
 
     def cachepath(self, node):
         """

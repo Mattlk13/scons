@@ -234,8 +234,10 @@ class SConfBuildTask(SCons.Taskmaster.AlwaysTask):
         bi.
         """
         if not isinstance(bi, SConfBuildInfo):
-            SCons.Warnings.warn(SConfWarning,
-              "The stored build information has an unexpected class: %s" % bi.__class__)
+            SCons.Warnings.warn(
+                SConfWarning,
+                "The stored build information has an unexpected class: %s" % bi.__class__
+            )
         else:
             self.display("The original builder output was:\n" +
                          ("  |" + str(bi.string)).replace("\n", "\n  |"))
@@ -598,13 +600,13 @@ class SConfBase:
         f = "conftest"
 
         if text is not None:
-            textSig = SCons.Util.MD5signature(sourcetext)
+            textSig = SCons.Util.hash_signature(sourcetext)
             textSigCounter = str(_ac_build_counter[textSig])
             _ac_build_counter[textSig] += 1
 
             f = "_".join([f, textSig, textSigCounter])
             textFile = self.confdir.File(f + extension)
-            self._set_conftest_node(sourcetext)
+            self._set_conftest_node(textFile)
             textFileNode = self.env.SConfSourceBuilder(target=textFile,
                                                        source=sourcetext)
             nodesToBeBuilt.extend(textFileNode)
@@ -617,12 +619,13 @@ class SConfBase:
             target = None
 
         action = builder.builder.action.get_contents(target=target, source=[source], env=self.env)
-        actionsig = SCons.Util.MD5signature(action)
+        actionsig = SCons.Util.hash_signature(action)
         f = "_".join([f, actionsig])
 
         pref = self.env.subst( builder.builder.prefix )
         suff = self.env.subst( builder.builder.suffix )
         target = self.confdir.File(pref + f + suff)
+        self._set_conftest_node(target)
 
         try:
             # Slide our wrapper into the construction environment as
